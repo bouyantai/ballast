@@ -7,7 +7,7 @@ so it works over SSH on a headless edge box. Standard library only.
     ballast log                 # the timeline: asked -> decided -> did
     ballast log --flagged       # only the dangerous-intent flags
     ballast log --session ab12  # one run
-    ballast summary             # per-run rollup (a morning digest)
+    ballast summary             # per-run rollup
     ballast verify              # is the hash-chain intact?
     ballast attest              # a portable, optionally-sealed proof of state
 """

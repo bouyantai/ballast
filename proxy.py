@@ -2,16 +2,16 @@
 Ballast PROXY — Option 1 (zero-touch).
 
 Sits in front of the model. An agent points its model URL here instead of at
-Ollama; every prompt/response flows through and is AUDITED at the content
-boundary, with dangerous command intents FLAGGED. The agent needs ZERO changes
-— it just talks to this address thinking it's Ollama.
+the model endpoint; every prompt and response flows through and is audited at
+the content boundary, with dangerous command intents flagged. The agent needs
+no changes; it connects to this address as if it were the model endpoint.
 
-    agent ──▶ Ballast proxy ──▶ Ollama
+    agent ──▶ Ballast proxy ──▶ model (e.g. Ollama)
               (audit + flag)
 
-What it CAN do: log every exchange, flag a dangerous intent in the model's reply.
-What it CAN'T do: see a tool actually execute — that happens inside the agent,
-out of the proxy's sight. (That's what the SDK adapter is for.)
+Scope: the proxy logs every exchange and flags dangerous intents in the model's
+reply. It does not observe tool execution, which happens inside the agent — that
+is the role of a future SDK adapter.
 
 Run it:
     python3 proxy.py                     # listens on :8100, forwards to Ollama

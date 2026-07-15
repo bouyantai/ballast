@@ -16,8 +16,8 @@ flags dangerous intents, and keeps a **tamper-evident, edge-safe** log.
                  └───────┬──────────────────┬───────┘
               ┌──────────▼─────┐    ┌────────▼──────────┐
               │ proxy.py       │    │ (SDK adapter —    │
-              │ Option 1       │    │  a real one,      │
-              │ zero-touch     │    │  later)           │
+              │ Option 1       │    │  planned)         │
+              │ zero-touch     │    │                   │
               └────────────────┘    └───────────────────┘
 
   cli.py — read-only tools over the trail: log · summary · verify · attest
@@ -26,10 +26,10 @@ flags dangerous intents, and keeps a **tamper-evident, edge-safe** log.
 - **`core.py`** — the shared brain: policy, edge-safe tamper-evident audit, content scanning, `--verify`.
 - **`proxy.py`** — **Option 1 (zero-touch):** sits in front of the model; audits every
   prompt/response and flags dangerous intents. The agent needs no changes.
-- **`agent.py`** — a throwaway demo agent (a stand-in for "someone else's agent").
-  It does **not** import Ballast — that's how we prove zero-touch.
+- **`agent.py`** — a small demonstration agent used to exercise the proxy. It
+  does **not** import Ballast, showing that no changes to the agent are required.
 
-## Try it (Option 1 — the proxy)
+## Quick start (Option 1 — the proxy)
 
 Three terminals:
 
@@ -41,9 +41,9 @@ ollama run llama3.2
 cd ~/Development/ballast
 python3 proxy.py                       # listens on :8100 -> Ollama :11434
 
-# 3. an UNMODIFIED agent, pointed at Ballast by changing ONE env var
+# 3. an unmodified agent, pointed at Ballast by changing one environment variable
 OLLAMA_HOST=localhost:8100 python3 agent.py "count the lines in agent.py"
-OLLAMA_HOST=localhost:8100 python3 agent.py "delete every file here"   # watch it get FLAGGED
+OLLAMA_HOST=localhost:8100 python3 agent.py "delete every file here"   # the dangerous intent is flagged
 ```
 
 Then inspect and verify the trail:
@@ -55,8 +55,8 @@ python3 core.py --verify         # confirm the hash-chain is intact
 
 ## Demo
 
-An agent that has **no idea Ballast exists** tries to delete everything — Ballast
-catches it at the proxy, fully offline:
+An agent with no awareness of Ballast attempts to delete files. The proxy
+detects and flags the intent, fully offline:
 
 ```text
 # terminal running the proxy
@@ -73,8 +73,8 @@ PASS: OK — 12 records, chain intact
 ### What the proxy can and can't do
 - **Can:** log every prompt/response with near-zero weight; flag a dangerous
   command the model proposes; run fully offline.
-- **Can't:** stop a tool from actually executing — it never sees that. Real
-  action-blocking is the future **SDK adapter's** job.
+- **Can't:** stop a tool from actually executing — it never observes execution.
+  Blocking a tool at execution time is planned for a future SDK adapter.
 
 ## Deployment
 
@@ -94,12 +94,12 @@ pip install git+https://github.com/bouyantai/ballast
 
 ### Run it
 
-**Quick (dev / trying it out):**
+**Quick start (any platform):**
 ```bash
 python3 proxy.py          # or, if pip-installed:  ballast-proxy
 ```
 
-**As a service on a Linux edge device (systemd):**
+**As a service — Linux (systemd), recommended for edge devices:**
 ```ini
 # /etc/systemd/system/ballast.service
 [Unit]
@@ -122,7 +122,11 @@ sudo mkdir -p /var/lib/ballast
 sudo systemctl enable --now ballast
 ```
 
-**macOS / quick background:** `nohup ballast-proxy &`, a `tmux` pane, or a launchd plist.
+**As a service — other platforms:**
+- **macOS:** run under `launchd` (a LaunchAgent or LaunchDaemon plist).
+- **Windows:** register as a service (e.g. NSSM) or a Scheduled Task.
+
+**Any platform, minimal:** `nohup ballast-proxy &`, or a `tmux` / `screen` session.
 
 ### Point your agent at it
 
@@ -135,7 +139,7 @@ Change only the model base URL — nothing else about the agent changes:
 
 For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
 
-### Before you expose it — read this
+### Security considerations
 - **No authentication yet.** Bind Ballast to `localhost` or a trusted private
   network. Do **not** put the port on the public internet.
 - **Single process.** Ideal for one agent on a device; not sized for high concurrency.
@@ -151,7 +155,7 @@ Read-only, streaming, stdout-only — works over SSH on a headless box.
 ballast log                # timeline: asked -> decided -> did
 ballast log --flagged      # only the dangerous-intent flags
 ballast log --session ID   # one run
-ballast summary            # per-run rollup (a morning digest)
+ballast summary            # per-run rollup
 ballast verify             # is the hash-chain intact?
 ballast attest             # a portable, optionally-sealed proof of state
 ```

@@ -1,18 +1,18 @@
 """
-A tiny autonomous agent — a stand-in for "someone else's agent."
+A minimal autonomous agent, used to demonstrate the Ballast proxy.
 
-IMPORTANT: this file does NOT import Ballast. That's the point of Option 1:
-Ballast (the proxy) sits in front of the model and audits this agent WITHOUT
-it knowing or cooperating. To route through Ballast you change ONE thing —
-the model URL — via an env var, exactly like a real agent already supports:
+This agent does not import Ballast. It is included to show that an unmodified,
+third-party agent can be audited by the proxy without code changes: only the
+model URL is redirected, via an environment variable, as any agent already
+supports.
 
-    ollama run llama3.2                                   # model up
-    python3 proxy.py                                      # Ballast proxy up (:8100)
+    ollama run llama3.2                                   # start the model
+    python3 proxy.py                                      # start the proxy (:8100)
     OLLAMA_HOST=localhost:8100 python3 agent.py "list the files here"
 
-(Its run_shell has a tiny built-in safety check so THIS demo can't wreck your
-machine while you play. Real enforcement of a third-party agent is the SDK
-adapter's job, not this file's.)
+run_shell includes a small built-in allowlist so the demonstration cannot
+affect the host. Enforcement of a third-party agent is a separate concern,
+addressed by a future SDK adapter.
 """
 
 import json
@@ -48,7 +48,7 @@ _DEMO_SAFE = {"ls", "pwd", "cat", "head", "tail", "wc", "find", "echo", "grep", 
 
 
 def run_shell(command):
-    # demo-only safety so this toy can't hurt your machine; not the real product
+    # demonstration-only allowlist so this agent cannot affect the host
     if any(b in command.lower() for b in ("rm ", "sudo", "mv ", "dd ", ">", "|", ";", "curl", "wget", "-delete")):
         return "[demo blocked this command]"
     try:
