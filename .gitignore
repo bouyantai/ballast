@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 # runtime artifacts — the audit trail is generated locally, not committed
 ballast_audit.*
+
+# local test harness / simulations — kept locally, not part of the product
+sim/

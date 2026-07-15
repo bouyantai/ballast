@@ -174,6 +174,7 @@ def _rotate_if_needed():
 def _emit(kind, meta, content, decision=None):
     """Write one tiered, hash-chained (optionally sealed) record."""
     if REDACT_MODE != "off":
+        meta = {k: (redact(v) if isinstance(v, str) else v) for k, v in meta.items()}
         content = {k: redact(v) for k, v in content.items()}
     blob = json.dumps(content, sort_keys=True)
     rec = {

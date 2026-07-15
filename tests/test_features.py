@@ -59,6 +59,19 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(len(att["root"]), 64)
         self.assertFalse(att["sealed"])
 
+    def test_redaction_covers_all_fields_not_just_content(self):
+        core.CONTENT_MODE = "always"
+        core.log_tool_call(
+            "transmit",
+            "camera: jane.doe@example.com SSN 123-45-6789",
+            "BLOCK", "offsite transmit forbidden",
+            result="sent jane.doe@example.com",
+        )
+        raw = open(core.AUDIT_FILE).read()
+        self.assertNotIn("jane.doe@example.com", raw)   # must not leak via meta `arg`
+        self.assertNotIn("123-45-6789", raw)
+        self.assertIn("[REDACTED]", raw)
+
 
 if __name__ == "__main__":
     unittest.main()
