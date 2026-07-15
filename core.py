@@ -21,9 +21,11 @@ import os
 import shlex
 from datetime import datetime, timezone
 
-_HERE = os.path.dirname(__file__)
-AUDIT_FILE = os.path.join(_HERE, "ballast_audit.jsonl")
-CHAIN_FILE = os.path.join(_HERE, "ballast_audit.chain")
+# Where the audit trail is written. Defaults to the current working directory
+# (so a pip-installed copy never writes into site-packages). Pin it explicitly
+# when running as a service, e.g. BALLAST_AUDIT_FILE=/var/lib/ballast/audit.jsonl
+AUDIT_FILE = os.environ.get("BALLAST_AUDIT_FILE", os.path.join(os.getcwd(), "ballast_audit.jsonl"))
+CHAIN_FILE = AUDIT_FILE + ".chain"
 
 CONTENT_MODE = os.environ.get("BALLAST_LOG_CONTENT", "events")  # events | always | never
 MAX_CONTENT_CHARS = int(os.environ.get("BALLAST_MAX_CONTENT", "2000"))

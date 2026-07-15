@@ -74,10 +74,78 @@ PASS: OK — 12 records, chain intact
 - **Can't:** stop a tool from actually executing — it never sees that. Real
   action-blocking is the future **SDK adapter's** job.
 
-## Tuning (env vars)
+## Deployment
+
+Ballast is not a cloud service — it's a small process you run **next to your
+agent** (same machine or same local network). Deploying it is three steps: run
+the proxy, point your agent at it, keep it alive.
+
+### Install
+
+```bash
+# from source
+git clone https://github.com/bouyantai/ballast && cd ballast
+
+# ...or install the CLI (still zero runtime dependencies)
+pip install git+https://github.com/bouyantai/ballast
+```
+
+### Run it
+
+**Quick (dev / trying it out):**
+```bash
+python3 proxy.py          # or, if pip-installed:  ballast-proxy
+```
+
+**As a service on a Linux edge device (systemd):**
+```ini
+# /etc/systemd/system/ballast.service
+[Unit]
+Description=Ballast agent audit proxy
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/ballast-proxy          # wherever pip installed it (`which ballast-proxy`)
+Environment=BALLAST_UPSTREAM=http://localhost:11434
+Environment=BALLAST_PROXY_PORT=8100
+Environment=BALLAST_AUDIT_FILE=/var/lib/ballast/audit.jsonl
+Restart=always
+User=ballast
+
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+sudo mkdir -p /var/lib/ballast
+sudo systemctl enable --now ballast
+```
+
+**macOS / quick background:** `nohup ballast-proxy &`, a `tmux` pane, or a launchd plist.
+
+### Point your agent at it
+
+Change only the model base URL — nothing else about the agent changes:
+
+| Your agent talks to… | …point it at Ballast instead |
+|---|---|
+| Ollama (`http://localhost:11434`) | `http://localhost:8100` |
+| any OpenAI-compatible endpoint | `http://<ballast-host>:8100` |
+
+For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
+
+### Before you expose it — read this
+- **No authentication yet.** Bind Ballast to `localhost` or a trusted private
+  network. Do **not** put the port on the public internet.
+- **Single process.** Ideal for one agent on a device; not sized for high concurrency.
+- **Pin `BALLAST_AUDIT_FILE`** to an absolute path when running as a service, so the
+  trail lands somewhere stable rather than in the service's working directory.
+
+## Configuration (env vars)
+- `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
+- `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
+- `BALLAST_AUDIT_FILE` — where the audit trail is written (default `./ballast_audit.jsonl`).
 - `BALLAST_LOG_CONTENT=events|always|never` — how much full content to store (default `events` = lean).
 - `BALLAST_MAX_BYTES` — rotate the log at this size (default 2 MB).
-- `BALLAST_PROXY_PORT`, `BALLAST_UPSTREAM` — proxy listen port / upstream model.
 
 ## No dependencies
 Pure Python standard library. Nothing to `pip install`. Runs on constrained /
