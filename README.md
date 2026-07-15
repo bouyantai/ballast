@@ -16,9 +16,11 @@ flags dangerous intents, and keeps a **tamper-evident, edge-safe** log.
                  └───────┬──────────────────┬───────┘
               ┌──────────▼─────┐    ┌────────▼──────────┐
               │ proxy.py       │    │ (SDK adapter —    │
-              │ Option 1       │    │  later, when      │
-              │ zero-touch     │    │  someone asks)    │
+              │ Option 1       │    │  a real one,      │
+              │ zero-touch     │    │  later)           │
               └────────────────┘    └───────────────────┘
+
+  cli.py — read-only tools over the trail: log · summary · verify · attest
 ```
 
 - **`core.py`** — the shared brain: policy, edge-safe tamper-evident audit, content scanning, `--verify`.
@@ -140,6 +142,29 @@ For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
 - **Pin `BALLAST_AUDIT_FILE`** to an absolute path when running as a service, so the
   trail lands somewhere stable rather than in the service's working directory.
 
+## Reading the trail (CLI)
+
+Read-only, streaming, stdout-only — works over SSH on a headless box.
+(From a clone, use `python3 cli.py <cmd>`; after `pip install`, just `ballast`.)
+
+```bash
+ballast log                # timeline: asked -> decided -> did
+ballast log --flagged      # only the dangerous-intent flags
+ballast log --session ID   # one run
+ballast summary            # per-run rollup (a morning digest)
+ballast verify             # is the hash-chain intact?
+ballast attest             # a portable, optionally-sealed proof of state
+```
+
+## Privacy & trust
+
+- **Redaction is on by default.** Emails, SSNs, card numbers, and API tokens are
+  scrubbed from stored content before it touches disk (regex, no ML, edge-safe).
+  Disable with `BALLAST_REDACT=off`; customise via the policy's `redact` list.
+- **Optional sealing.** Set `BALLAST_SIGN_KEY` and every record is HMAC-sealed;
+  `ballast verify` then also proves it was signed by *your* key, and `ballast attest`
+  emits a portable proof of the trail's state. Pure standard library — no crypto deps.
+
 ## Configuration (env vars)
 - `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
 - `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
@@ -147,6 +172,10 @@ For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
 - `BALLAST_LOG_CONTENT=events|always|never` — how much full content to store (default `events` = lean).
 - `BALLAST_MAX_BYTES` — rotate the log at this size (default 2 MB).
 - `BALLAST_POLICY_FILE` — path to a JSON policy that overrides the built-in default (see **Policy** below).
+- `BALLAST_REDACT=on|off` — scrub PII/secrets from stored content (default `on`).
+- `BALLAST_SIGN_KEY` — if set, HMAC-seal every record (tamper-evidence + authenticity).
+- `BALLAST_ALERT` — where flag/block alerts go: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_SESSION` — group records under a fixed run id (default: random per process).
 
 ## Policy (what counts as dangerous)
 

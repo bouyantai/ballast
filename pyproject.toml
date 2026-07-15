@@ -21,8 +21,8 @@ classifiers = [
 dependencies = []  # zero — pure standard library, on purpose
 
 [project.scripts]
+ballast = "cli:main"
 ballast-proxy = "proxy:main"
-ballast-verify = "core:_verify_cli"
 
 [tool.setuptools]
-py-modules = ["core", "proxy", "agent"]
+py-modules = ["core", "proxy", "agent", "cli"]

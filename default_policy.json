@@ -17,5 +17,12 @@
     "rm -rf", "rm -r", "sudo ", "mkfs", "dd if=", ":(){", "shutdown",
     "reboot", "chmod 777", "> /dev/", "curl ", "wget ",
     "find . -delete", "find . -exec"
+  ],
+
+  "redact": [
+    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
+    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+    "\\b(?:\\d[ -]?){13,16}\\b",
+    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
   ]
 }

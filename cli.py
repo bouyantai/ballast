@@ -1,0 +1,114 @@
+"""
+Ballast CLI — read-only tools over the local audit trail.
+
+Streams the log line by line (constant memory) and prints plain text to stdout,
+so it works over SSH on a headless edge box. Standard library only.
+
+    ballast log                 # the timeline: asked -> decided -> did
+    ballast log --flagged       # only the dangerous-intent flags
+    ballast log --session ab12  # one run
+    ballast summary             # per-run rollup (a morning digest)
+    ballast verify              # is the hash-chain intact?
+    ballast attest              # a portable, optionally-sealed proof of state
+"""
+
+import argparse
+import json
+import sys
+
+import core
+
+
+def _iter_records(path):
+    try:
+        f = open(path)
+    except FileNotFoundError:
+        return
+    with f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    yield json.loads(line)
+                except ValueError:
+                    continue
+
+
+def _one_line(rec):
+    kind = rec.get("kind")
+    if kind == "model_call":
+        return f"model  step {rec.get('step')}  chose={rec.get('chose')}"
+    if kind == "tool_call":
+        return f"tool   {rec.get('tool')}({rec.get('arg')!r}) -> {rec.get('decision')}  ({rec.get('reason')})"
+    if kind == "flag":
+        text = (rec.get("content") or {}).get("text", "")
+        return f"FLAG   {rec.get('matched')}  {text}"
+    return kind or "?"
+
+
+def cmd_log(args):
+    for rec in _iter_records(core.AUDIT_FILE):
+        if args.flagged and rec.get("kind") != "flag":
+            continue
+        if args.session and rec.get("session") != args.session:
+            continue
+        ts = (rec.get("ts") or "")[:19].replace("T", " ")
+        print(f"{ts}  [{rec.get('session', '')}]  {_one_line(rec)}")
+
+
+def cmd_summary(args):
+    runs = {}
+    for rec in _iter_records(core.AUDIT_FILE):
+        sid = rec.get("session", "?")
+        r = runs.setdefault(sid, {"events": 0, "flags": 0, "blocks": 0, "first": rec.get("ts"), "last": rec.get("ts")})
+        r["events"] += 1
+        if rec.get("kind") == "flag":
+            r["flags"] += 1
+        if rec.get("decision") == "BLOCK":
+            r["blocks"] += 1
+        r["last"] = rec.get("ts")
+    if not runs:
+        print("(no audit records yet)")
+        return
+    for sid, r in runs.items():
+        span = f"{(r['first'] or '')[:19]} -> {(r['last'] or '')[:19]}".replace("T", " ")
+        print(f"session {sid}: {r['events']} events, {r['flags']} flag(s), {r['blocks']} block(s)   {span}")
+
+
+def cmd_verify(args):
+    ok, msg = core.verify_chain()
+    print(("PASS: " if ok else "FAIL: ") + msg)
+    sys.exit(0 if ok else 1)
+
+
+def cmd_attest(args):
+    print(json.dumps(core.attest(), indent=2))
+
+
+def main():
+    p = argparse.ArgumentParser(prog="ballast", description="Ballast audit tools (local, read-only).")
+    sub = p.add_subparsers(dest="command")
+
+    lg = sub.add_parser("log", help="print the audit timeline")
+    lg.add_argument("--flagged", action="store_true", help="only dangerous-intent flags")
+    lg.add_argument("--session", help="filter to one run/session id")
+    lg.set_defaults(func=cmd_log)
+
+    sm = sub.add_parser("summary", help="per-session rollup (a digest)")
+    sm.set_defaults(func=cmd_summary)
+
+    vf = sub.add_parser("verify", help="verify the hash-chain is intact")
+    vf.set_defaults(func=cmd_verify)
+
+    at = sub.add_parser("attest", help="print a portable proof of the trail's state")
+    at.set_defaults(func=cmd_attest)
+
+    args = p.parse_args()
+    if not getattr(args, "func", None):
+        p.print_help()
+        return
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
