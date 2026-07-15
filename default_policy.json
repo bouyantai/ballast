@@ -1,0 +1,21 @@
+{
+  "_comment": "Ballast's DEFAULT policy — a sensible starting point for agents that run SHELL commands. Ballast core is agnostic; this is not universal truth. Copy this file, edit it for YOUR agent's tools, and point BALLAST_POLICY_FILE at it.",
+
+  "safe_programs": [
+    "ls", "pwd", "cat", "head", "tail", "wc",
+    "find", "echo", "grep", "file", "stat", "date"
+  ],
+
+  "danger": [
+    "rm ", "rm-", "sudo", "mkfs", "dd ", ":(){", "shutdown", "reboot",
+    "chmod", "chown", "curl", "wget", "ssh", "nc ", "mv ", "kill",
+    "-delete", "-exec",
+    ";", "&&", "||", "|", ">", "<", "`", "$("
+  ],
+
+  "text_danger": [
+    "rm -rf", "rm -r", "sudo ", "mkfs", "dd if=", ":(){", "shutdown",
+    "reboot", "chmod 777", "> /dev/", "curl ", "wget ",
+    "find . -delete", "find . -exec"
+  ]
+}

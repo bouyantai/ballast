@@ -146,6 +146,19 @@ For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
 - `BALLAST_AUDIT_FILE` — where the audit trail is written (default `./ballast_audit.jsonl`).
 - `BALLAST_LOG_CONTENT=events|always|never` — how much full content to store (default `events` = lean).
 - `BALLAST_MAX_BYTES` — rotate the log at this size (default 2 MB).
+- `BALLAST_POLICY_FILE` — path to a JSON policy that overrides the built-in default (see **Policy** below).
+
+## Policy (what counts as dangerous)
+
+Ballast core is **agnostic** — it does not know what any given agent's tools
+mean. What ships is a sensible **default policy for shell-command agents**
+(`safe_programs` / `danger` / `text_danger`) — a starting point, not universal
+truth. Define your own for your agent by copying `default_policy.json`, editing
+it, and pointing `BALLAST_POLICY_FILE` at it:
+
+```bash
+BALLAST_POLICY_FILE=./my_policy.json python3 proxy.py
+```
 
 ## No dependencies
 Pure Python standard library. Nothing to `pip install`. Runs on constrained /

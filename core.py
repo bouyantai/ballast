@@ -38,16 +38,53 @@ _NOTEWORTHY = {"BLOCK", "FLAG", "ERROR"}  # decisions that justify storing full 
 #  ENFORCEMENT — the DECIDE half (used by the SDK adapter; a deployer's
 #  policy would plug in here)
 # =========================================================================
-SAFE_PROGRAMS = {
-    "ls", "pwd", "cat", "head", "tail", "wc",
-    "find", "echo", "grep", "file", "stat", "date",
+# ---------------------------------------------------------------------------
+# POLICY is the DEPLOYER's to define. Ballast core is agnostic — it does NOT
+# know what any given agent's tools mean. What ships here is a sensible DEFAULT
+# for the common case (an agent that runs shell commands), not universal truth.
+# Override it entirely for your agent by pointing BALLAST_POLICY_FILE at your
+# own JSON of the same shape (see default_policy.json for the template).
+# ---------------------------------------------------------------------------
+_DEFAULT_POLICY = {
+    # allowlist: only these programs may run; everything else is blocked
+    "safe_programs": [
+        "ls", "pwd", "cat", "head", "tail", "wc",
+        "find", "echo", "grep", "file", "stat", "date",
+    ],
+    # blocked substrings — even an allowlisted program is denied if one appears
+    # (chaining, redirection, networking, destructive verbs/flags)
+    "danger": [
+        "rm ", "rm-", "sudo", "mkfs", "dd ", ":(){", "shutdown", "reboot",
+        "chmod", "chown", "curl", "wget", "ssh", "nc ", "mv ", "kill",
+        "-delete", "-exec",
+        ";", "&&", "||", "|", ">", "<", "`", "$(",
+    ],
+    # high-signal command intents to flag when spotted in free model text
+    "text_danger": [
+        "rm -rf", "rm -r", "sudo ", "mkfs", "dd if=", ":(){", "shutdown",
+        "reboot", "chmod 777", "> /dev/", "curl ", "wget ",
+        "find . -delete", "find . -exec",
+    ],
 }
-DANGER = [
-    "rm ", "rm-", "sudo", "mkfs", "dd ", ":(){", "shutdown", "reboot",
-    "chmod", "chown", "curl", "wget", "ssh", "nc ", "mv ", "kill",
-    "-delete", "-exec",  # e.g. `find . -delete` — allowlisting the program isn't enough
-    ";", "&&", "||", "|", ">", "<", "`", "$(",
-]
+
+
+def _load_policy():
+    """Load the active policy. A deployer overrides the default by pointing
+    BALLAST_POLICY_FILE at a JSON file with keys safe_programs / danger /
+    text_danger. A bad override fails loudly rather than silently running open."""
+    data = _DEFAULT_POLICY
+    path = os.environ.get("BALLAST_POLICY_FILE")
+    if path:
+        with open(path) as f:
+            data = json.load(f)
+    return (
+        set(data.get("safe_programs", [])),
+        list(data.get("danger", [])),
+        list(data.get("text_danger", [])),
+    )
+
+
+SAFE_PROGRAMS, DANGER, TEXT_DANGER = _load_policy()
 
 
 def decide(tool_name, arg):
@@ -68,16 +105,11 @@ def decide(tool_name, arg):
 
 
 # =========================================================================
-#  CONTENT SCANNING — high-signal danger patterns for scanning free text
-#  (e.g. a dangerous command the MODEL proposes). Deliberately narrower than
-#  DANGER above, so ordinary punctuation in prose doesn't trip it.
+#  CONTENT SCANNING — flag high-signal danger intents in free text (e.g. a
+#  dangerous command the MODEL proposes). Uses the policy's `text_danger`
+#  list, deliberately narrower than `danger` so ordinary prose punctuation
+#  doesn't trip it.
 # =========================================================================
-TEXT_DANGER = [
-    "rm -rf", "rm -r", "sudo ", "mkfs", "dd if=", ":(){", "shutdown", "reboot",
-    "chmod 777", "> /dev/", "curl ", "wget ", "find . -delete", "find . -exec",
-]
-
-
 def scan_text(text):
     """Return the list of dangerous command intents found in free text."""
     low = (text or "").lower()
