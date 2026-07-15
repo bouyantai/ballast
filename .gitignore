@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+# runtime artifacts — the audit trail is generated locally, not committed
+ballast_audit.jsonl
+ballast_audit.jsonl.1
+ballast_audit.chain
