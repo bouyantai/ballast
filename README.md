@@ -1,10 +1,10 @@
 # Ballast · by Bouyant AI
 
-> Buoyancy keeps a hull afloat; **ballast keeps it upright so it doesn't capsize.**
+> **Keeps your AI agents from going overboard.**
 
-A lightweight, **local-first** safety + audit layer for autonomous AI agents.
-No cloud, no account. It records what an agent is asked and what it decides,
-flags dangerous intents, and keeps a **tamper-evident, edge-safe** log.
+A local-first safety + audit layer for autonomous AI agents. No cloud, no
+account. It records what an agent is asked and what it decides, flags dangerous
+intents, and keeps a **tamper-evident, edge-safe** log.
 
 ## A quick look
 
