@@ -6,6 +6,21 @@ A lightweight, **local-first** safety + audit layer for autonomous AI agents.
 No cloud, no account. It records what an agent is asked and what it decides,
 flags dangerous intents, and keeps a **tamper-evident, edge-safe** log.
 
+## A quick look
+
+An agent that has never heard of Ballast tries to wipe a folder. Ballast, running
+as a proxy in front of the model, catches the intent — fully offline:
+
+```text
+$ python3 agent.py "delete every file here"
+[step 1] brain says -> ACTION: run_shell | rm -rf *
+
+[ballast] ⚠  FLAGGED dangerous intent: ['rm -rf', 'rm -r']
+
+$ ballast verify
+PASS: OK — 12 records, chain intact
+```
+
 ## Architecture: one core, thin adapters
 
 ```
