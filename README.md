@@ -184,6 +184,24 @@ ballast attest             # a portable, optionally-sealed proof of state
   `ballast verify` then also proves it was signed by *your* key, and `ballast attest`
   emits a portable proof of the trail's state. Pure standard library — no crypto deps.
 
+## Fail-safe & health (for unattended devices)
+
+When no one is watching, Ballast defaults to safe behavior:
+
+- **Fail-closed by default.** If Ballast cannot evaluate an action (bad policy or an
+  internal error), it denies rather than allows. Flip with `BALLAST_FAIL=open` when
+  availability matters more than safety for your deployment.
+- **Upstream timeout.** A hung or unreachable model cannot wedge the device. The
+  proxy times out (`BALLAST_UPSTREAM_TIMEOUT`, default 30s), records it, and returns
+  a clear error.
+- **Liveness heartbeat.** Ballast writes a small heartbeat so a supervisor can tell
+  whether it has wedged. Check it with `ballast health` (exit 0 = alive, 1 = down)
+  and wire that into a systemd or cron healthcheck.
+
+```bash
+ballast health          # OK - alive, last heartbeat 4.2s ago
+```
+
 ## Configuration (env vars)
 - `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
 - `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
@@ -195,6 +213,9 @@ ballast attest             # a portable, optionally-sealed proof of state
 - `BALLAST_SIGN_KEY` — if set, HMAC-seal every record (tamper-evidence + authenticity).
 - `BALLAST_ALERT` — where flag/block alerts go: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 - `BALLAST_SESSION` — group records under a fixed run id (default: random per process).
+- `BALLAST_FAIL=closed|open` — behavior when Ballast cannot evaluate an action (default `closed`).
+- `BALLAST_UPSTREAM_TIMEOUT` — seconds before a hung model call is aborted (default `30`).
+- `BALLAST_HEARTBEAT_SEC` — liveness heartbeat interval (default `30`).
 
 ## Policy (what counts as dangerous)
 

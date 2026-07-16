@@ -18,6 +18,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -45,6 +46,11 @@ REDACT_MODE = os.environ.get("BALLAST_REDACT", "on")  # on | off
 
 # --- optional alert sink — default none; command/webhook are opt-in (#4) --
 ALERT = os.environ.get("BALLAST_ALERT", "none")  # none | stderr | file:PATH | command:CMD | webhook:URL
+
+# --- fail-safe posture + liveness (for unattended devices) ----------------
+FAIL_MODE = os.environ.get("BALLAST_FAIL", "closed")   # closed | open — what to do when we cannot evaluate
+HEALTH_FILE = os.environ.get("BALLAST_HEALTH_FILE", AUDIT_FILE + ".health")
+HEARTBEAT_INTERVAL = int(os.environ.get("BALLAST_HEARTBEAT_SEC", "30"))
 
 
 # =========================================================================
@@ -98,21 +104,33 @@ SAFE_PROGRAMS, DANGER, TEXT_DANGER, REDACT = _load_policy()
 _REDACT_RX = [re.compile(p) for p in REDACT]
 
 
+def safe_verdict(reason="could not evaluate"):
+    """The fail-safe fallback used whenever Ballast cannot make a decision.
+    Fail-closed (the default) denies; fail-open allows. Flip with BALLAST_FAIL=open."""
+    if FAIL_MODE == "open":
+        return True, f"fail-open: {reason}"
+    return False, f"fail-closed: {reason}"
+
+
 def decide(tool_name, arg):
-    """Pure decision: may this action run? Returns (allowed, reason). No logging."""
-    if tool_name == "run_shell":
-        low = arg.lower()
-        for bad in DANGER:
-            if bad in low:
-                return False, f"contains blocked pattern {bad!r}"
-        try:
-            program = shlex.split(arg)[0]
-        except (ValueError, IndexError):
-            return False, "could not parse command"
-        if program not in SAFE_PROGRAMS:
-            return False, f"'{program}' is not on the allowlist of safe programs"
-        return True, "ok"
-    return True, "read-only tool"
+    """Pure decision: may this action run? Returns (allowed, reason). No logging.
+    Never raises: any internal error falls back to the fail-safe posture."""
+    try:
+        if tool_name == "run_shell":
+            low = arg.lower()
+            for bad in DANGER:
+                if bad in low:
+                    return False, f"contains blocked pattern {bad!r}"
+            try:
+                program = shlex.split(arg)[0]
+            except (ValueError, IndexError):
+                return False, "could not parse command"
+            if program not in SAFE_PROGRAMS:
+                return False, f"'{program}' is not on the allowlist of safe programs"
+            return True, "ok"
+        return True, "read-only tool"
+    except Exception as e:
+        return safe_verdict(f"decision error: {e}")
 
 
 def scan_text(text):
@@ -198,6 +216,7 @@ def _emit(kind, meta, content, decision=None):
     with open(AUDIT_FILE, "a") as f:
         f.write(json.dumps(rec) + "\n")
     _set_last_hash(rec["hash"])
+    heartbeat()  # activity proves liveness (throttled)
 
 
 def log_model_call(step, prompt, response, chose=None):
@@ -255,6 +274,45 @@ def _notify(kind, summary):
 
 
 # =========================================================================
+#  LIVENESS / WATCHDOG — prove Ballast is alive so a supervisor can restart
+#  it if it wedges. Edge-safe: tiny file, throttled writes, no network.
+# =========================================================================
+_last_beat = 0.0
+
+
+def heartbeat(status="ok", force=False):
+    """Write a small liveness record, at most once per HEARTBEAT_INTERVAL."""
+    global _last_beat
+    now = time.time()
+    if not force and (now - _last_beat) < HEARTBEAT_INTERVAL:
+        return
+    _last_beat = now
+    try:
+        with open(HEALTH_FILE, "w") as f:
+            json.dump({"epoch": now, "session": SESSION, "status": status, "pid": os.getpid()}, f)
+    except Exception:
+        pass  # liveness writes must never break the agent
+
+
+def health(max_age=None):
+    """Report whether Ballast is alive, based on the age of the last heartbeat."""
+    limit = max_age if max_age is not None else HEARTBEAT_INTERVAL * 3
+    try:
+        with open(HEALTH_FILE) as f:
+            h = json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {"alive": False, "reason": "no heartbeat found"}
+    age = time.time() - h.get("epoch", 0)
+    return {"alive": age <= limit, "age_seconds": round(age, 1),
+            "status": h.get("status"), "pid": h.get("pid"), "session": h.get("session")}
+
+
+def log_system(event, detail=""):
+    """Record a Ballast operational event (startup, degraded, upstream_error...)."""
+    _emit("system", {"event": event, "detail": detail}, {"detail": detail})
+
+
+# =========================================================================
 #  VERIFY / ATTEST
 # =========================================================================
 def verify_chain(path=AUDIT_FILE):
@@ -282,7 +340,7 @@ def verify_chain(path=AUDIT_FILE):
                     return False, f"line {i}: seal mismatch (not signed by this key)"
             prev = stored
             n += 1
-    return True, f"OK — {n} records, chain intact"
+    return True, f"OK, {n} records, chain intact"
 
 
 def attest(path=AUDIT_FILE):

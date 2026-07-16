@@ -10,6 +10,7 @@ so it works over SSH on a headless edge box. Standard library only.
     ballast summary             # per-run rollup
     ballast verify              # is the hash-chain intact?
     ballast attest              # a portable, optionally-sealed proof of state
+    ballast health              # is Ballast alive? (exit 0=ok, 1=down)
 """
 
 import argparse
@@ -85,6 +86,17 @@ def cmd_attest(args):
     print(json.dumps(core.attest(), indent=2))
 
 
+def cmd_health(args):
+    h = core.health()
+    if args.json:
+        print(json.dumps(h, indent=2))
+    elif h["alive"]:
+        print(f"OK - alive, last heartbeat {h['age_seconds']}s ago (pid {h.get('pid')})")
+    else:
+        print("DOWN - " + (h.get("reason") or f"stale (no heartbeat for {h.get('age_seconds')}s)"))
+    sys.exit(0 if h["alive"] else 1)
+
+
 def main():
     p = argparse.ArgumentParser(prog="ballast", description="Ballast audit tools (local, read-only).")
     sub = p.add_subparsers(dest="command")
@@ -102,6 +114,10 @@ def main():
 
     at = sub.add_parser("attest", help="print a portable proof of the trail's state")
     at.set_defaults(func=cmd_attest)
+
+    hp = sub.add_parser("health", help="report whether Ballast is alive (exit 0=ok, 1=down)")
+    hp.add_argument("--json", action="store_true")
+    hp.set_defaults(func=cmd_health)
 
     args = p.parse_args()
     if not getattr(args, "func", None):

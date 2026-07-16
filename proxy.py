@@ -21,6 +21,8 @@ Run it:
 
 import json
 import os
+import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +31,7 @@ import core
 
 LISTEN_PORT = int(os.environ.get("BALLAST_PROXY_PORT", "8100"))
 UPSTREAM = os.environ.get("BALLAST_UPSTREAM", "http://localhost:11434")
+UPSTREAM_TIMEOUT = float(os.environ.get("BALLAST_UPSTREAM_TIMEOUT", "30"))  # a hung model must not wedge the device
 
 _step = 0
 
@@ -57,10 +60,13 @@ class Handler(BaseHTTPRequestHandler):
                 UPSTREAM + self.path, data=body,
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req) as r:
+            with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT) as r:
                 resp, status = r.read(), r.status
-        except urllib.error.URLError as e:
-            self.send_error(502, f"upstream unreachable: {e}")
+        except OSError as e:
+            # A hung or unreachable model must not wedge an unattended device:
+            # time out, record it, and return a clear error instead of hanging.
+            core.log_system("upstream_error", f"{self.path}: {e}")
+            self.send_error(504, f"upstream unavailable: {e}")
             return
 
         # 2. audit the content boundary (best-effort; skip if not plain JSON)
@@ -88,9 +94,20 @@ class Handler(BaseHTTPRequestHandler):
         pass  # silence the default per-request console spam
 
 
+def _heartbeat_loop():
+    """Prove liveness on a fixed interval so a supervisor can spot a wedged proxy
+    even when there is no traffic."""
+    while True:
+        time.sleep(core.HEARTBEAT_INTERVAL)
+        core.heartbeat(force=True)
+
+
 def main():
     print(f"Ballast proxy listening on :{LISTEN_PORT}  ->  {UPSTREAM}")
     print(f"Point an agent at it:  OLLAMA_HOST=localhost:{LISTEN_PORT} python3 agent.py \"...\"")
+    core.log_system("startup", f"proxy on :{LISTEN_PORT} -> {UPSTREAM}")
+    core.heartbeat(force=True)
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
     ThreadingHTTPServer(("", LISTEN_PORT), Handler).serve_forever()
 
 
