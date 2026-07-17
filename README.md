@@ -202,6 +202,30 @@ When no one is watching, Ballast defaults to safe behavior:
 ballast health          # OK - alive, last heartbeat 4.2s ago
 ```
 
+## Proving it after the fact (external anchoring)
+
+A local hash chain can be recomputed by anyone who fully controls the device, and
+records can be truncated to hide recent activity. Both attacks leave the chain
+internally consistent, so a purely local check passes and cannot catch them.
+
+External anchoring closes that gap. Ballast publishes the current chain head and
+record count to somewhere the device does not control (a server, a write-once
+store, a git repo, another machine). Later, `ballast verify --anchors` proves the
+local trail still reproduces those anchors. A rewrite or a truncation of the
+offline window will not match, and you can prove it.
+
+```bash
+BALLAST_ANCHOR=webhook:https://anchor.example/ingest ballast anchor   # publish a checkpoint
+ballast verify --anchors anchors.jsonl                                # prove the trail matches
+```
+
+Anchoring is optional and opportunistic (run it on a timer or when the device
+reconnects), and the target is yours to choose, so the offline, no-cloud core is
+unchanged. Honest limits: anchoring does not prevent tampering, it makes it
+provable after the fact, and only if an honest anchor was recorded before
+compromise and the target stays outside the attacker's reach. For the strongest
+guarantee, pair it with a hardware-backed key.
+
 ## Configuration (env vars)
 - `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
 - `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
@@ -216,6 +240,7 @@ ballast health          # OK - alive, last heartbeat 4.2s ago
 - `BALLAST_FAIL=closed|open` — behavior when Ballast cannot evaluate an action (default `closed`).
 - `BALLAST_UPSTREAM_TIMEOUT` — seconds before a hung model call is aborted (default `30`).
 - `BALLAST_HEARTBEAT_SEC` — liveness heartbeat interval (default `30`).
+- `BALLAST_ANCHOR` — where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 
 ## Policy (what counts as dangerous)
 

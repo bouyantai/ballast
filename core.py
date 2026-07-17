@@ -52,6 +52,12 @@ FAIL_MODE = os.environ.get("BALLAST_FAIL", "closed")   # closed | open — what 
 HEALTH_FILE = os.environ.get("BALLAST_HEALTH_FILE", AUDIT_FILE + ".health")
 HEARTBEAT_INTERVAL = int(os.environ.get("BALLAST_HEARTBEAT_SEC", "30"))
 
+# --- external anchoring — publish the chain head somewhere the device does
+#     NOT control, so a rewrite or truncation of the offline window becomes
+#     provable after reconnect. Optional and opportunistic; the core still runs
+#     fully offline without it.
+ANCHOR = os.environ.get("BALLAST_ANCHOR", "none")  # none | stderr | file:PATH | command:CMD | webhook:URL
+
 
 # =========================================================================
 #  POLICY — the DEPLOYER's to define. core is agnostic; what ships is a
@@ -315,7 +321,8 @@ def log_system(event, detail=""):
 # =========================================================================
 #  VERIFY / ATTEST
 # =========================================================================
-def verify_chain(path=AUDIT_FILE):
+def verify_chain(path=None):
+    path = path or AUDIT_FILE
     prev = GENESIS
     n = 0
     try:
@@ -343,9 +350,10 @@ def verify_chain(path=AUDIT_FILE):
     return True, f"OK, {n} records, chain intact"
 
 
-def attest(path=AUDIT_FILE):
+def attest(path=None):
     """A compact, portable proof of the trail's current state: the chain head
     hash + record count, HMAC-sealed if BALLAST_SIGN_KEY is set."""
+    path = path or AUDIT_FILE
     prev = GENESIS
     n = 0
     try:
@@ -361,6 +369,74 @@ def attest(path=AUDIT_FILE):
     if SIGN_KEY:
         out["seal"] = hmac.new(SIGN_KEY.encode(), (prev + str(n)).encode(), hashlib.sha256).hexdigest()
     return out
+
+
+# =========================================================================
+#  EXTERNAL ANCHORING — root trust off the device so offline-window tampering
+#  (rewrite or truncation) is provable after reconnect. Optional, pluggable.
+# =========================================================================
+def _publish_anchor(cp):
+    """Send a checkpoint to the external anchor sink. Returns True on success."""
+    if ANCHOR == "none":
+        return False
+    line = json.dumps(cp)
+    try:
+        if ANCHOR == "stderr":
+            print("[ballast:anchor] " + line, file=sys.stderr)
+        elif ANCHOR.startswith("file:"):
+            with open(ANCHOR[5:], "a") as f:
+                f.write(line + "\n")
+        elif ANCHOR.startswith("command:"):
+            subprocess.run(ANCHOR[8:], shell=True, input=line.encode(), timeout=10)
+        elif ANCHOR.startswith("webhook:"):
+            req = urllib.request.Request(
+                ANCHOR[8:], data=line.encode(), headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5)
+        else:
+            return False
+        return True
+    except Exception:
+        return False  # anchoring is best-effort; the caller reports success
+
+
+def anchor():
+    """Publish the current chain head + record count to the external anchor sink.
+    Returns (checkpoint, published). verify_against() later proves the local trail
+    still reproduces the checkpoint, which is what catches rewrite and truncation."""
+    cp = attest()
+    cp["ts"] = datetime.now(timezone.utc).isoformat()
+    return cp, _publish_anchor(cp)
+
+
+def verify_against(checkpoints, path=None):
+    """Prove the local chain still reproduces externally-held checkpoints. Catches
+    tampering that stays internally consistent (a full rewrite) and truncation of
+    recent records, neither of which verify_chain() alone can detect.
+    `checkpoints` is a list of {"records": n, "root": hash}."""
+    path = path or AUDIT_FILE
+    ok, msg = verify_chain(path)
+    if not ok:
+        return False, msg
+    expected = {c["records"]: c["root"] for c in checkpoints if "records" in c and "root" in c}
+    prev, n = GENESIS, 0
+    try:
+        f = open(path)
+    except FileNotFoundError:
+        f = None
+    if f:
+        with f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                prev = json.loads(line).get("hash", prev)
+                n += 1
+                if n in expected and prev != expected[n]:
+                    return False, f"anchor mismatch at record {n}: the local trail no longer matches its external anchor (it was rewritten)"
+    for c_count in sorted(expected):
+        if c_count > n:
+            return False, f"missing record {c_count}: an external anchor exists for it but the local trail is shorter (records were truncated)"
+    return True, f"OK, chain matches {len(expected)} external anchor(s)"
 
 
 def _verify_cli():

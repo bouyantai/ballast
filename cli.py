@@ -11,6 +11,8 @@ so it works over SSH on a headless edge box. Standard library only.
     ballast verify              # is the hash-chain intact?
     ballast attest              # a portable, optionally-sealed proof of state
     ballast health              # is Ballast alive? (exit 0=ok, 1=down)
+    ballast anchor              # publish the chain head to the external anchor sink
+    ballast verify --anchors F  # also prove the trail matches external anchors in F
 """
 
 import argparse
@@ -77,9 +79,29 @@ def cmd_summary(args):
 
 
 def cmd_verify(args):
-    ok, msg = core.verify_chain()
+    if getattr(args, "anchors", None):
+        checkpoints = []
+        try:
+            with open(args.anchors) as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        checkpoints.append(json.loads(line))
+        except FileNotFoundError:
+            print(f"FAIL: anchor file not found: {args.anchors}")
+            sys.exit(1)
+        ok, msg = core.verify_against(checkpoints)
+    else:
+        ok, msg = core.verify_chain()
     print(("PASS: " if ok else "FAIL: ") + msg)
     sys.exit(0 if ok else 1)
+
+
+def cmd_anchor(args):
+    cp, published = core.anchor()
+    print(json.dumps(cp, indent=2))
+    if not published:
+        print("(no anchor sink configured; set BALLAST_ANCHOR to publish it)", file=sys.stderr)
 
 
 def cmd_attest(args):
@@ -110,6 +132,7 @@ def main():
     sm.set_defaults(func=cmd_summary)
 
     vf = sub.add_parser("verify", help="verify the hash-chain is intact")
+    vf.add_argument("--anchors", help="also prove the chain against a JSONL file of external anchors")
     vf.set_defaults(func=cmd_verify)
 
     at = sub.add_parser("attest", help="print a portable proof of the trail's state")
@@ -118,6 +141,9 @@ def main():
     hp = sub.add_parser("health", help="report whether Ballast is alive (exit 0=ok, 1=down)")
     hp.add_argument("--json", action="store_true")
     hp.set_defaults(func=cmd_health)
+
+    an = sub.add_parser("anchor", help="publish the current chain head to the external anchor sink")
+    an.set_defaults(func=cmd_anchor)
 
     args = p.parse_args()
     if not getattr(args, "func", None):
