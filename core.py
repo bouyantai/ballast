@@ -359,11 +359,13 @@ def _emit(kind, meta, content, decision=None):
         _counts["flagged"] += 1
         _notify("policy", f"{kind} relevant to " + ", ".join(c for c, isf in control_hits if isf))
     heartbeat()  # activity proves liveness (throttled)
+    return controls, control_hits  # so a caller (e.g. the proxy) can report them
 
 
 def log_model_call(step, prompt, response, chose=None):
-    """CONTENT boundary: the agent<->model exchange."""
-    _emit(
+    """CONTENT boundary: the agent<->model exchange.
+    Returns (controls, control_hits) so the proxy can report what fired."""
+    return _emit(
         "model_call",
         meta={"step": step, "chose": chose or "(n/a)"},
         content={"prompt": prompt, "response": response},

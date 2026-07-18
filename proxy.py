@@ -46,22 +46,73 @@ def _refusal(req_json, hits):
     return json.dumps(payload).encode()
 
 
+def _content_str(c):
+    """A message's content is a string, or a list of parts (OpenAI multimodal)."""
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        return " ".join(p.get("text", "") for p in c
+                        if isinstance(p, dict) and p.get("type") == "text")
+    return ""
+
+
 def _extract(req_json, resp_json):
-    """Pull (prompt, response_text) out of Ollama's chat/generate payloads."""
+    """Pull (prompt, response_text) out of a chat/generate exchange. Handles both
+    Ollama-native (/api/chat, /api/generate) and OpenAI-compatible (/v1) shapes, so
+    the proxy is model-API agnostic, not just Ollama-shaped."""
     prompt = ""
     if isinstance(req_json, dict):
         msgs = req_json.get("messages")
-        prompt = (msgs[-1].get("content", "") if msgs else req_json.get("prompt", ""))
+        prompt = _content_str(msgs[-1].get("content", "")) if msgs else (req_json.get("prompt") or "")
     response = ""
     if isinstance(resp_json, dict):
-        response = (resp_json.get("message") or {}).get("content", "") or resp_json.get("response", "")
+        # Ollama: /api/chat -> message.content, /api/generate -> response
+        response = (resp_json.get("message") or {}).get("content") or resp_json.get("response") or ""
+        if not response:
+            # OpenAI: /v1/chat/completions -> choices[0].message.content,
+            #         /v1/completions      -> choices[0].text
+            first = (resp_json.get("choices") or [{}])[0] or {}
+            response = _content_str((first.get("message") or {}).get("content", "")) or first.get("text") or ""
     return prompt, response
 
 
+def _error_body(message, code=502, err_type="ballast_error"):
+    """A JSON, OpenAI-shaped error so a client degrades cleanly instead of choking
+    on an HTML error page."""
+    return json.dumps({"error": {"message": message, "type": err_type, "code": code}}).encode()
+
+
+def _console_line(step, danger, control_hits, controls):
+    """One human-readable status line. Surfaces danger-text flags AND framework
+    control matches, so a pack doing its job is never silent."""
+    policy = [c for c, is_flag in control_hits if is_flag]
+    if danger:
+        state = f"FLAGGED  danger={danger}"
+    elif policy:
+        state = f"FLAGGED  policy={policy}"
+    elif controls:
+        state = f"logged   controls={controls}"
+    else:
+        state = "logged   (clean)"
+    return f"[ballast] step {step}  {state}"
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _reply(self, status, body):
+        """Send a JSON response body. Swallows a client hang-up: the agent going
+        away must never crash the proxy."""
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except OSError:
+            pass
+
     def do_POST(self):
         global _step
-        length = int(self.headers.get("Content-Length", 0))
+        length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length)
 
         # 1. forward the request to the real model, untouched
@@ -72,11 +123,18 @@ class Handler(BaseHTTPRequestHandler):
             )
             with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT) as r:
                 resp, status = r.read(), r.status
+        except urllib.error.HTTPError as e:
+            # The model itself returned an error status. Pass its own (already JSON)
+            # body straight through so the agent sees the real error.
+            core.log_system("upstream_http_error", f"{self.path}: {e.code}")
+            self._reply(e.code, e.read())
+            return
         except OSError as e:
-            # A hung or unreachable model must not wedge an unattended device:
-            # time out, record it, and return a clear error instead of hanging.
+            # Unreachable or timed out: a hung model must not wedge an unattended
+            # device. Return a clean JSON error, not an HTML page, so the agent
+            # degrades instead of choking on the response.
             core.log_system("upstream_error", f"{self.path}: {e}")
-            self.send_error(504, f"upstream unavailable: {e}")
+            self._reply(504, _error_body(f"upstream unavailable: {e}", 504, "upstream_unavailable"))
             return
 
         # 2. audit the content boundary (best-effort; skip if not plain JSON)
@@ -85,27 +143,21 @@ class Handler(BaseHTTPRequestHandler):
             req_json = json.loads(body)
             prompt, response = _extract(req_json, json.loads(resp))
             _step += 1
-            core.log_model_call(_step, prompt=prompt, response=response)
-            hits = core.scan_text(response)
-            if hits:
-                core.log_flag("model_response", hits, response)
+            controls, control_hits = core.log_model_call(_step, prompt=prompt, response=response)
+            danger = core.scan_text(response)
+            if danger:
+                core.log_flag("model_response", danger, response)
                 if core.BLOCK == "on":                     # EXPERIMENTAL, best-effort
-                    resp = _refusal(req_json, hits)
+                    resp = _refusal(req_json, danger)
                     blocked = True
-                    print(f"[ballast] step {_step}  BLOCKED (experimental): {hits}")
-                else:
-                    print(f"[ballast] step {_step}  FLAGGED: {hits}")
-            else:
-                print(f"[ballast] step {_step}  logged (clean)")
+            print(_console_line(_step, danger, control_hits, controls), flush=True)
+            if blocked:
+                print(f"[ballast] step {_step}  BLOCKED (experimental)", flush=True)
         except (ValueError, KeyError, TypeError):
             pass  # streaming or non-JSON body — forward it, just don't parse
 
         # 3. hand the response back to the agent (unchanged, or a refusal if blocked)
-        self.send_response(200 if blocked else status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(resp)))
-        self.end_headers()
-        self.wfile.write(resp)
+        self._reply(200 if blocked else status, resp)
 
     def log_message(self, *args):
         pass  # silence the default per-request console spam
