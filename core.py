@@ -61,6 +61,7 @@ ANCHOR = os.environ.get("BALLAST_ANCHOR", "none")  # none | stderr | file:PATH |
 # --- optional public counter (opt-in telemetry) — sends COUNTS ONLY, never
 #     content or anything identifying, so a community counter can total flags.
 REPORT = os.environ.get("BALLAST_REPORT", "none")  # none | https://.../ingest
+REPORT_KEY = os.environ.get("BALLAST_REPORT_KEY", "")  # optional shared secret (sent as x-ballast-key)
 _counts = {"flagged": 0, "actions": 0}
 
 
@@ -312,9 +313,10 @@ def report():
     if payload is None:
         return False
     try:
-        req = urllib.request.Request(
-            REPORT, data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if REPORT_KEY:
+            headers["x-ballast-key"] = REPORT_KEY
+        req = urllib.request.Request(REPORT, data=json.dumps(payload).encode(), headers=headers)
         urllib.request.urlopen(req, timeout=5)
     except Exception:
         return False  # keep the tally and retry next time

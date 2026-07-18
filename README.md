@@ -257,6 +257,7 @@ disconnected device loses nothing and reveals nothing until you opt in.
 - `BALLAST_HEARTBEAT_SEC` — liveness heartbeat interval (default `30`).
 - `BALLAST_ANCHOR` — where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 - `BALLAST_REPORT` — opt-in public-counter endpoint; sends counts only (default `none`).
+- `BALLAST_REPORT_KEY` — optional shared secret sent as `x-ballast-key` so the counter can reject spoofed counts.
 
 ## Policy (what counts as dangerous)
 
