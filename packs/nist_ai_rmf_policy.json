@@ -1,0 +1,94 @@
+{
+  "framework": {
+    "name": "NIST AI Risk Management Framework (AI RMF 1.0)",
+    "short": "NIST AI RMF",
+    "version": "1.0",
+    "source": "https://airc.nist.gov/airmf-resources/playbook/",
+    "full_playbook": "https://airc.nist.gov/docs/playbook.json",
+    "note": "A convenience index, NOT a compliance claim. These are the AI RMF subcategories a runtime record is most relevant to, concentrated in Measure and Manage. Tagging a record here means it may be relevant to that control for an auditor's review; it does not assert the control is satisfied. Ballast captures the record, the auditor evaluates it against whatever framework they bring. Revise these for your own context."
+  },
+  "safe_programs": [],
+  "danger": [],
+  "text_danger": [],
+  "redact": [
+    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
+    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+    "\\b(?:\\d[ -]?){13,16}\\b",
+    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
+  ],
+  "controls": [
+    {
+      "id": "MEASURE 2.6",
+      "function": "Measure",
+      "category": "MEASURE-2",
+      "outcome": "AI system is evaluated regularly for safety risks – as identified in the MAP function. The AI system to be deployed is demonstrated to be safe, its residual negative risk does not exceed the risk tolerance, and can fail safely, particularly if made to operate beyond its knowledge limits. Safety metrics implicate system reliability and robustness, real-time monitoring, and response times for AI system failures.",
+      "relevance": "Flagged actions that indicate safety risks are relevant to ongoing safety review.",
+      "record_kinds": [
+        "flag"
+      ]
+    },
+    {
+      "id": "MEASURE 2.7",
+      "function": "Measure",
+      "category": "MEASURE-2",
+      "outcome": "AI system security and resilience – as identified in the MAP function – are evaluated and documented.",
+      "relevance": "Flagged security-relevant actions (destructive commands, exfiltration attempts) are relevant to security and resilience review.",
+      "record_kinds": [
+        "flag"
+      ]
+    },
+    {
+      "id": "MEASURE 2.8",
+      "function": "Measure",
+      "category": "MEASURE-2",
+      "outcome": "Risks associated with transparency and accountability – as identified in the MAP function – are examined and documented.",
+      "relevance": "The record of what the agent was asked, decided, and did is relevant to transparency and accountability review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "MEASURE 2.10",
+      "function": "Measure",
+      "category": "MEASURE-2",
+      "outcome": "Privacy risk of the AI system – as identified in the MAP function – is examined and documented.",
+      "relevance": "Redaction of PII and secrets in stored records is relevant to privacy review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "MEASURE 3.1",
+      "function": "Measure",
+      "category": "MEASURE-3",
+      "outcome": "Approaches, personnel, and documentation are in place to regularly identify and track existing, unanticipated, and emergent AI risks based on factors such as intended and actual performance in deployed contexts.",
+      "relevance": "The append-only trail of flagged risks over time is relevant to reviewing how identified risks are tracked.",
+      "record_kinds": [
+        "flag"
+      ]
+    },
+    {
+      "id": "MANAGE 4.1",
+      "function": "Manage",
+      "category": "MANAGE-4",
+      "outcome": "Post-deployment AI system monitoring plans are implemented, including mechanisms for capturing and evaluating input from users and other relevant AI actors, appeal and override, decommissioning, incident response, recovery, and change management.",
+      "relevance": "The captured field record of inputs, decisions, and actions is relevant to post-deployment monitoring review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "MANAGE 4.3",
+      "function": "Manage",
+      "category": "MANAGE-4",
+      "outcome": "Incidents and errors are communicated to relevant AI actors including affected communities. Processes for tracking, responding to, and recovering from incidents and errors are followed and documented.",
+      "relevance": "Flagged and recorded incidents (dangerous or blocked actions) are relevant to incident tracking and communication.",
+      "record_kinds": [
+        "flag"
+      ]
+    }
+  ]
+}

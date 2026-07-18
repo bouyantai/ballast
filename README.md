@@ -307,9 +307,10 @@ one control:
 ballast log --control 'MEASURE 2.8'   # every record evidencing this control
 ```
 
-This maps and documents, it does not enforce or certify compliance. Ballast
-produces the evidence, mapped to the controls an auditor asks about; the
-organization does the rest.
+These tags are a convenience index, not a compliance claim. They point an auditor
+at records relevant to a control; they do not assert the control is satisfied.
+Ballast captures the record, the auditor evaluates it. A starter NIST AI RMF pack
+ships in [`packs/`](packs/) — revise it for your own context.
 
 ## No dependencies
 Pure Python standard library. Nothing to `pip install`. Runs on constrained /
