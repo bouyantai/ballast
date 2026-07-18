@@ -292,6 +292,13 @@ mean. What ships is a sensible **default policy for shell-command agents**
 truth. Define your own for your agent by copying `default_policy.json`, editing
 it, and pointing `BALLAST_POLICY_FILE` at it:
 
+Danger flagging is **best-effort, not comprehensive.** It is substring matching
+scanned on both the prompt and the reply, so it catches the phrasings it knows
+and misses others (`shutil.rmtree(...)` sails past a list built for `rm -rf`).
+Treat a flag as a hint for review, not a guarantee, and its absence as no promise
+of safety. The product is the faithful tamper-evident record; the flags are a
+lightweight convenience over it.
+
 ```bash
 BALLAST_POLICY_FILE=./my_policy.json python3 proxy.py
 ```

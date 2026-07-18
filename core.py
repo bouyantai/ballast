@@ -77,6 +77,12 @@ BLOCK = os.environ.get("BALLAST_BLOCK", "off")  # off | on
 #  POLICY — the DEPLOYER's to define. core is agnostic; what ships is a
 #  sensible DEFAULT for shell-command agents. Override the whole thing with
 #  BALLAST_POLICY_FILE (see default_policy.json for the template).
+#
+#  The danger / text_danger lists are a BEST-EFFORT starter, not an exhaustive
+#  catalogue of dangerous actions. Substring matching misses anything phrased
+#  differently (shutil.rmtree, os.system, obfuscation). Detection here is a
+#  lightweight hint; the product is the faithful tamper-evident record, and real
+#  code-intent analysis belongs off the edge hot path, not in a longer keyword list.
 # =========================================================================
 _DEFAULT_POLICY = {
     "safe_programs": [
@@ -259,7 +265,11 @@ def decide(tool_name, arg):
 
 
 def scan_text(text):
-    """Flag high-signal dangerous intents in free text (uses policy.text_danger)."""
+    """Best-effort flag of dangerous intents in free text (uses policy.text_danger).
+    This is a lightweight substring heuristic, NOT comprehensive: it catches the
+    shell-style phrasings it knows and misses anything worded differently (e.g.
+    `shutil.rmtree(...)` instead of `rm -rf`). Treat a hit as a hint for review,
+    and its absence as no promise of safety."""
     low = (text or "").lower()
     return [p for p in TEXT_DANGER if p in low]
 

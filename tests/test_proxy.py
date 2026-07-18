@@ -70,6 +70,31 @@ class ConsoleLineTests(unittest.TestCase):
         self.assertNotIn("FLAGGED", line)
 
 
+class DangerScanTests(unittest.TestCase):
+    """Danger is scanned on BOTH sides, and honestly limited to what the keyword
+    list knows."""
+
+    def test_flags_prompt_side(self):
+        flags = proxy._danger_flags("please run rm -rf /", "sure thing")
+        self.assertIn("prompt", [w for w, _, _ in flags])
+
+    def test_flags_response_side(self):
+        flags = proxy._danger_flags("hi", "ok: rm -rf /tmp/x")
+        self.assertIn("model_response", [w for w, _, _ in flags])
+
+    def test_flags_both_sides(self):
+        flags = proxy._danger_flags("rm -rf a", "rm -rf b")
+        self.assertEqual(sorted(w for w, _, _ in flags), ["model_response", "prompt"])
+
+    def test_clean_exchange_has_no_flags(self):
+        self.assertEqual(proxy._danger_flags("hello", "world"), [])
+
+    def test_substring_limitation_is_real(self):
+        # honest: a Python-destructive call is NOT caught by the shell-word list.
+        # This test documents the limitation on purpose, so a regression is visible.
+        self.assertEqual(proxy._danger_flags("clear the cache", "shutil.rmtree('./cache')"), [])
+
+
 class BannerTests(unittest.TestCase):
     """The startup banner must show both integration routes and read as examples,
     so it never regresses to implying an Ollama-only, must-run-agent.py workflow."""

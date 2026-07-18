@@ -3,15 +3,17 @@ Ballast PROXY — Option 1 (zero-touch).
 
 Sits in front of the model. An agent points its model URL here instead of at
 the model endpoint; every prompt and response flows through and is audited at
-the content boundary, with dangerous command intents flagged. The agent needs
-no changes; it connects to this address as if it were the model endpoint.
+the content boundary. Dangerous intents in either the prompt or the reply get a
+best-effort flag (a keyword hint, not comprehensive). The agent needs no changes;
+it connects to this address as if it were the model endpoint.
 
-    agent ──▶ Ballast proxy ──▶ model (e.g. Ollama)
+    agent --> Ballast proxy --> model (e.g. Ollama)
               (audit + flag)
 
-Scope: the proxy logs every exchange and flags dangerous intents in the model's
-reply. It does not observe tool execution, which happens inside the agent — that
-is the role of a future SDK adapter.
+Scope: the proxy logs every exchange and best-effort-flags dangerous intents in
+the prompt or reply. It does not observe tool execution, which happens inside the
+agent; that is the role of a future SDK adapter. And the flag is a substring hint,
+not a guarantee: it misses intents phrased outside its keyword list.
 
 Run it:
     python3 proxy.py            # listens on :8100, forwards to Ollama by default
@@ -77,6 +79,19 @@ def _extract(req_json, resp_json):
             first = (resp_json.get("choices") or [{}])[0] or {}
             response = _content_str((first.get("message") or {}).get("content", "")) or first.get("text") or ""
     return prompt, response
+
+
+def _danger_flags(prompt, response):
+    """Best-effort danger scan of BOTH sides of the exchange. Intent can arrive in
+    the prompt (what the agent was told to do) or the reply (what the model
+    proposed), so scan each. Returns [(where, hits, text), ...], one entry per side
+    that matched. Substring-based, so it is a hint, not a guarantee."""
+    out = []
+    for where, text in (("prompt", prompt), ("model_response", response)):
+        hits = core.scan_text(text)
+        if hits:
+            out.append((where, hits, text))
+    return out
 
 
 def _error_body(message, code=502, err_type="ballast_error"):
@@ -147,12 +162,15 @@ class Handler(BaseHTTPRequestHandler):
             prompt, response = _extract(req_json, json.loads(resp))
             _step += 1
             controls, control_hits = core.log_model_call(_step, prompt=prompt, response=response)
-            danger = core.scan_text(response)
-            if danger:
-                core.log_flag("model_response", danger, response)
-                if core.BLOCK == "on":                     # EXPERIMENTAL, best-effort
-                    resp = _refusal(req_json, danger)
-                    blocked = True
+            # scan BOTH sides: dangerous intent can arrive in the prompt or the reply
+            flags = _danger_flags(prompt, response)
+            for where, hits, text in flags:
+                core.log_flag(where, hits, text)
+            resp_danger = next((hits for where, hits, _ in flags if where == "model_response"), [])
+            if resp_danger and core.BLOCK == "on":         # EXPERIMENTAL, withholds the reply
+                resp = _refusal(req_json, resp_danger)
+                blocked = True
+            danger = sorted({h for _, hits, _ in flags for h in hits})
             print(_console_line(_step, danger, control_hits, controls), flush=True)
             if blocked:
                 print(f"[ballast] step {_step}  BLOCKED (experimental)", flush=True)
