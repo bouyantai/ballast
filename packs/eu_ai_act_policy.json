@@ -1,0 +1,78 @@
+{
+  "framework": {
+    "name": "EU AI Act (Regulation (EU) 2024/1689)",
+    "short": "EU AI Act",
+    "citation": "Regulation (EU) 2024/1689",
+    "source": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng",
+    "note": "A convenience index, NOT a compliance claim or legal advice. These obligations apply to HIGH-RISK AI systems (and some to GPAI); most AI is not high-risk under the Act. These are the record-keeping, monitoring, incident, and oversight obligations a runtime audit record is most relevant to. A tag means a record may be relevant to that article for review; it does not assert the obligation is met. Ballast does not perform conformity assessment and does not address the rest of the Act (risk management, data governance, technical documentation, etc.). Revise for your own context."
+  },
+  "safe_programs": [],
+  "danger": [],
+  "text_danger": [],
+  "redact": [
+    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
+    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+    "\\b(?:\\d[ -]?){13,16}\\b",
+    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
+  ],
+  "controls": [
+    {
+      "id": "Article 12",
+      "title": "Record-keeping",
+      "summary": "High-risk AI systems must technically allow the automatic recording of events (logs) over their lifetime, for traceability of operation.",
+      "relevance": "Ballast is automatic event logging of the AI system's operation, directly relevant to the record-keeping obligation.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "Article 19",
+      "title": "Automatically generated logs",
+      "summary": "Providers must keep the logs referred to in Article 12 that are under their control.",
+      "relevance": "Ballast produces and, with store-and-forward, retains those logs, relevant to keeping automatically generated logs.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "Article 26",
+      "title": "Obligations of deployers (monitoring and log retention)",
+      "summary": "Deployers of high-risk AI must monitor operation and retain automatically generated logs for at least six months (26(5), 26(6)).",
+      "relevance": "Ballast's on-device monitoring record and store-and-forward retention are relevant to deployer monitoring and log-keeping.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "Article 72",
+      "title": "Post-market monitoring",
+      "summary": "Providers must establish a post-market monitoring system that collects and documents data on system performance.",
+      "relevance": "Ballast's captured field record of inputs, decisions, and actions is relevant to post-market monitoring.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "Article 73",
+      "title": "Reporting of serious incidents",
+      "summary": "Providers must report serious incidents to the relevant authorities.",
+      "relevance": "Ballast flags and records incidents (dangerous or blocked actions) with a tamper-evident trail relevant to detecting and documenting serious incidents.",
+      "record_kinds": [
+        "flag"
+      ]
+    },
+    {
+      "id": "Article 14",
+      "title": "Human oversight",
+      "summary": "High-risk AI must be designed so it can be effectively overseen by humans.",
+      "relevance": "Ballast surfaces flagged risky actions for human review, relevant to supporting human oversight.",
+      "record_kinds": [
+        "flag"
+      ]
+    }
+  ]
+}

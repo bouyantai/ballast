@@ -1,0 +1,69 @@
+{
+  "framework": {
+    "name": "HIPAA Security Rule (45 CFR Part 164, Subpart C)",
+    "short": "HIPAA",
+    "citation": "45 CFR Part 164",
+    "source": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C",
+    "note": "A convenience index, NOT a compliance claim or legal advice. These are the HIPAA Security Rule safeguards a runtime audit record of an AI system handling ePHI is most relevant to. A tag means a record may be relevant to that safeguard for review; it does not assert the safeguard is met. IMPORTANT: an audit trail of a system that handles ePHI is itself ePHI and must be protected accordingly (Ballast redacts by default, but the trail is in scope). Ballast is not a full HIPAA solution. Revise for your own context."
+  },
+  "safe_programs": [],
+  "danger": [],
+  "text_danger": [],
+  "redact": [
+    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
+    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+    "\\b(?:\\d[ -]?){13,16}\\b",
+    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
+  ],
+  "controls": [
+    {
+      "id": "164.312(b)",
+      "title": "Audit controls",
+      "summary": "Implement mechanisms that record and examine activity in systems that contain or use ePHI.",
+      "relevance": "Ballast is an audit-control mechanism: it records and lets you examine the AI system's activity.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "164.308(a)(1)(ii)(D)",
+      "title": "Information system activity review",
+      "summary": "Regularly review records of information system activity such as audit logs and incident reports.",
+      "relevance": "Ballast's trail is the record of activity to be reviewed; ballast log and summary support that review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "164.312(c)",
+      "title": "Integrity",
+      "summary": "Protect ePHI from improper alteration or destruction, with a mechanism to corroborate it has not been altered.",
+      "relevance": "Ballast's hash-chained, optionally sealed trail is relevant to detecting improper alteration and to integrity review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    },
+    {
+      "id": "164.308(a)(6)(ii)",
+      "title": "Security incident procedures (response and reporting)",
+      "summary": "Identify and respond to suspected or known security incidents and document them and their outcomes.",
+      "relevance": "Ballast flags and records incidents (dangerous or blocked actions) with a tamper-evident, timestamped trail relevant to incident identification and documentation.",
+      "record_kinds": [
+        "flag"
+      ]
+    },
+    {
+      "id": "164.502(b)",
+      "title": "Minimum necessary",
+      "summary": "Limit PHI to the minimum necessary to accomplish the intended purpose.",
+      "relevance": "Ballast redacts PII and PHI from stored records by default, relevant to keeping the audit trail to the minimum necessary.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ]
+    }
+  ]
+}

@@ -14,6 +14,13 @@ assert that the control is satisfied. Revise a pack for your own context.
 
 - `nist_ai_rmf_policy.json` — NIST AI RMF 1.0. A lean relevance index for the
   Measure and Manage controls a runtime record most relates to (7 subcategories).
+- `hipaa_policy.json` — HIPAA Security Rule (45 CFR Part 164). Audit controls,
+  activity review, integrity, incident procedures, and minimum-necessary
+  redaction (5 provisions). Note: an audit trail of a system handling ePHI is
+  itself ePHI and must be protected accordingly.
+- `eu_ai_act_policy.json` — EU AI Act (Regulation (EU) 2024/1689). Record-keeping,
+  logging, deployer monitoring, post-market monitoring, incident reporting, and
+  human oversight for high-risk AI systems (6 articles).
 
 ## Use
 
