@@ -57,8 +57,14 @@ def cmd_log(args):
             continue
         if args.session and rec.get("session") != args.session:
             continue
+        if getattr(args, "control", None) and args.control not in (rec.get("controls") or []):
+            continue
         ts = (rec.get("ts") or "")[:19].replace("T", " ")
-        print(f"{ts}  [{rec.get('session', '')}]  {_one_line(rec)}")
+        line = _one_line(rec)
+        ctrls = rec.get("controls")
+        if ctrls:
+            line += f"   ({', '.join(ctrls)})"
+        print(f"{ts}  [{rec.get('session', '')}]  {line}")
 
 
 def cmd_summary(args):
@@ -142,6 +148,7 @@ def main():
     lg = sub.add_parser("log", help="print the audit timeline")
     lg.add_argument("--flagged", action="store_true", help="only dangerous-intent flags")
     lg.add_argument("--session", help="filter to one run/session id")
+    lg.add_argument("--control", help="filter to records evidencing a control id, e.g. 'MEASURE 2.8'")
     lg.set_defaults(func=cmd_log)
 
     sm = sub.add_parser("summary", help="per-session rollup (a digest)")

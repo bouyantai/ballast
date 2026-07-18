@@ -124,6 +124,33 @@ SAFE_PROGRAMS, DANGER, TEXT_DANGER, REDACT = _load_policy()
 _REDACT_RX = [re.compile(p) for p in REDACT]
 
 
+def _load_control_tags():
+    """Map record kind -> [control ids] from a framework policy pack's `controls`
+    block, so each record can be tagged with the controls it provides evidence
+    toward (e.g. a NIST AI RMF pack). Empty unless the policy defines controls."""
+    path = os.environ.get("BALLAST_POLICY_FILE")
+    if not path:
+        return {}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    tags = {}
+    for c in data.get("controls", []):
+        cid = c.get("id")
+        if not cid:
+            continue
+        for kind in c.get("record_kinds", []):
+            tags.setdefault(kind, [])
+            if cid not in tags[kind]:
+                tags[kind].append(cid)
+    return tags
+
+
+CONTROL_TAGS = _load_control_tags()
+
+
 def safe_verdict(reason="could not evaluate"):
     """The fail-safe fallback used whenever Ballast cannot make a decision.
     Fail-closed (the default) denies; fail-open allows. Flip with BALLAST_FAIL=open."""
@@ -225,6 +252,8 @@ def _emit(kind, meta, content, decision=None):
     }
     if _store_content(decision):
         rec["content"] = {k: (v or "")[:MAX_CONTENT_CHARS] for k, v in content.items()}
+    if CONTROL_TAGS.get(kind):  # tag the record with the controls it evidences
+        rec["controls"] = CONTROL_TAGS[kind]
 
     prev = _last_hash()
     rec["prev"] = prev

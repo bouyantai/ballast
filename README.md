@@ -296,6 +296,21 @@ it, and pointing `BALLAST_POLICY_FILE` at it:
 BALLAST_POLICY_FILE=./my_policy.json python3 proxy.py
 ```
 
+## Framework control tagging
+
+A policy pack can carry a `controls` block that maps record kinds to control ids
+from a framework (for example NIST AI RMF). When present, each record is tagged
+with the controls it provides evidence toward, and you can pull the evidence for
+one control:
+
+```bash
+ballast log --control 'MEASURE 2.8'   # every record evidencing this control
+```
+
+This maps and documents, it does not enforce or certify compliance. Ballast
+produces the evidence, mapped to the controls an auditor asks about; the
+organization does the rest.
+
 ## No dependencies
 Pure Python standard library. Nothing to `pip install`. Runs on constrained /
 offline / air-gapped machines where a heavier stack won't fit.
