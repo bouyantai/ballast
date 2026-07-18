@@ -64,6 +64,14 @@ REPORT = os.environ.get("BALLAST_REPORT", "none")  # none | https://.../ingest
 REPORT_KEY = os.environ.get("BALLAST_REPORT_KEY", "")  # optional shared secret (sent as x-ballast-key)
 _counts = {"flagged": 0, "actions": 0}
 
+# --- store-and-forward — buffer the audit trail offline, deliver to a
+#     deployer-chosen destination opportunistically when online.
+SYNC = os.environ.get("BALLAST_SYNC", "none")  # none | file:PATH | command:CMD | webhook:URL
+
+# --- EXPERIMENTAL blocking — withhold a flagged model response instead of only
+#     recording it. Best-effort and content-level, not a guarantee. Off by default.
+BLOCK = os.environ.get("BALLAST_BLOCK", "off")  # off | on
+
 
 # =========================================================================
 #  POLICY — the DEPLOYER's to define. core is agnostic; what ships is a
@@ -323,6 +331,65 @@ def report():
     _counts["flagged"] = 0
     _counts["actions"] = 0
     return True
+
+
+# =========================================================================
+#  STORE-AND-FORWARD — buffer the audit trail offline, deliver un-synced
+#  records to BALLAST_SYNC when online. A cursor advances only on success, so
+#  nothing is lost or sent twice.
+# =========================================================================
+def _deliver_sync(records):
+    body = "\n".join(records)
+    try:
+        if SYNC.startswith("file:"):
+            with open(SYNC[5:], "a") as f:
+                f.write(body + "\n")
+        elif SYNC.startswith("command:"):
+            subprocess.run(SYNC[8:], shell=True, input=body.encode(), timeout=15)
+        elif SYNC.startswith("webhook:"):
+            req = urllib.request.Request(
+                SYNC[8:], data=body.encode(), headers={"Content-Type": "application/x-ndjson"})
+            urllib.request.urlopen(req, timeout=10)
+        else:
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def sync():
+    """Deliver audit records not yet synced to BALLAST_SYNC. Records persist
+    locally while offline and forward when online; the cursor advances only on a
+    successful delivery, so nothing is lost or double-sent. Returns the count sent."""
+    if SYNC == "none":
+        return 0
+    cursor_file = AUDIT_FILE + ".sync"
+    try:
+        with open(AUDIT_FILE) as f:
+            recs = [json.loads(line) for line in f if line.strip()]
+    except FileNotFoundError:
+        return 0
+    if not recs:
+        return 0
+    try:
+        with open(cursor_file) as f:
+            last = f.read().strip()
+    except FileNotFoundError:
+        last = ""
+    start = 0
+    if last:
+        for i, r in enumerate(recs):
+            if r.get("hash") == last:
+                start = i + 1
+                break
+    pending = recs[start:]
+    if not pending:
+        return 0
+    if not _deliver_sync([json.dumps(r) for r in pending]):
+        return 0
+    with open(cursor_file, "w") as f:
+        f.write(pending[-1].get("hash", ""))
+    return len(pending)
 
 
 # =========================================================================

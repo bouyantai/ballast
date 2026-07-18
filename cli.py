@@ -14,6 +14,7 @@ so it works over SSH on a headless edge box. Standard library only.
     ballast anchor              # publish the chain head to the external anchor sink
     ballast verify --anchors F  # also prove the trail matches external anchors in F
     ballast report              # send the opt-in counts tally to BALLAST_REPORT
+    ballast sync                # deliver buffered audit records to BALLAST_SYNC
 """
 
 import argparse
@@ -112,6 +113,13 @@ def cmd_report(args):
     print("reported" if core.report() else "(nothing to report yet)")
 
 
+def cmd_sync(args):
+    if core.SYNC == "none":
+        print("(set BALLAST_SYNC=file:/command:/webhook: to enable store-and-forward)", file=sys.stderr)
+        sys.exit(0)
+    print(f"synced {core.sync()} record(s)")
+
+
 def cmd_attest(args):
     print(json.dumps(core.attest(), indent=2))
 
@@ -155,6 +163,9 @@ def main():
 
     rp = sub.add_parser("report", help="send the opt-in counts tally to BALLAST_REPORT")
     rp.set_defaults(func=cmd_report)
+
+    sy = sub.add_parser("sync", help="deliver buffered audit records to BALLAST_SYNC (store-and-forward)")
+    sy.set_defaults(func=cmd_sync)
 
     args = p.parse_args()
     if not getattr(args, "func", None):

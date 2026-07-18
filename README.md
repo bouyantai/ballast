@@ -241,6 +241,29 @@ BALLAST_REPORT=https://counter.bouyant.ai/ingest ballast-proxy
 The tally is kept locally and pushed opportunistically when online, so a
 disconnected device loses nothing and reveals nothing until you opt in.
 
+## Store-and-forward (offline-first delivery)
+
+The audit trail persists locally. Point `BALLAST_SYNC` at a destination and
+Ballast delivers records that have not been synced yet, opportunistically when
+online, advancing a cursor only on success. A device offline for days buffers
+everything locally and forwards it the moment it reconnects, with nothing lost or
+sent twice. The destination is yours (your server, a SIEM, or a dashboard you run).
+
+```bash
+BALLAST_SYNC=webhook:https://logs.example/ingest ballast-proxy
+ballast sync    # or flush manually
+```
+
+## Blocking (experimental)
+
+By default Ballast records and flags; it does not block. Set `BALLAST_BLOCK=on`
+and the proxy will withhold a model response that trips a flag, returning a
+refusal in its place so the agent never receives the dangerous instruction.
+
+This is **experimental and best-effort**: it acts at the text level, assumes a
+known response shape, and a determined model or agent can evade it. Treat it as a
+safety net, not a guarantee. The record and the flag are always written either way.
+
 ## Configuration (env vars)
 - `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
 - `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
@@ -258,6 +281,8 @@ disconnected device loses nothing and reveals nothing until you opt in.
 - `BALLAST_ANCHOR` — where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 - `BALLAST_REPORT` — opt-in public-counter endpoint; sends counts only (default `none`).
 - `BALLAST_REPORT_KEY` — optional shared secret sent as `x-ballast-key` so the counter can reject spoofed counts.
+- `BALLAST_SYNC` — store-and-forward destination for the audit trail: `none` (default), `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_BLOCK=off|on` — EXPERIMENTAL: withhold a flagged model response instead of only recording it (default `off`).
 
 ## Policy (what counts as dangerous)
 

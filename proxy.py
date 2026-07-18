@@ -36,6 +36,16 @@ UPSTREAM_TIMEOUT = float(os.environ.get("BALLAST_UPSTREAM_TIMEOUT", "30"))  # a 
 _step = 0
 
 
+def _refusal(req_json, hits):
+    """EXPERIMENTAL: a model-shaped response that withholds the flagged content."""
+    msg = "[Ballast] Response withheld: dangerous intent detected (" + ", ".join(hits) + ")."
+    if isinstance(req_json, dict) and req_json.get("messages") is not None:
+        payload = {"message": {"role": "assistant", "content": msg}, "done": True}
+    else:
+        payload = {"response": msg, "done": True}
+    return json.dumps(payload).encode()
+
+
 def _extract(req_json, resp_json):
     """Pull (prompt, response_text) out of Ollama's chat/generate payloads."""
     prompt = ""
@@ -70,21 +80,28 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # 2. audit the content boundary (best-effort; skip if not plain JSON)
+        blocked = False
         try:
-            prompt, response = _extract(json.loads(body), json.loads(resp))
+            req_json = json.loads(body)
+            prompt, response = _extract(req_json, json.loads(resp))
             _step += 1
             core.log_model_call(_step, prompt=prompt, response=response)
             hits = core.scan_text(response)
             if hits:
                 core.log_flag("model_response", hits, response)
-                print(f"[ballast] step {_step}  ⚠  FLAGGED dangerous intent: {hits}")
+                if core.BLOCK == "on":                     # EXPERIMENTAL, best-effort
+                    resp = _refusal(req_json, hits)
+                    blocked = True
+                    print(f"[ballast] step {_step}  BLOCKED (experimental): {hits}")
+                else:
+                    print(f"[ballast] step {_step}  FLAGGED: {hits}")
             else:
                 print(f"[ballast] step {_step}  logged (clean)")
         except (ValueError, KeyError, TypeError):
             pass  # streaming or non-JSON body — forward it, just don't parse
 
-        # 3. hand the model's response back to the agent, unchanged
-        self.send_response(status)
+        # 3. hand the response back to the agent (unchanged, or a refusal if blocked)
+        self.send_response(200 if blocked else status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(resp)))
         self.end_headers()
@@ -102,6 +119,8 @@ def _heartbeat_loop():
         core.heartbeat(force=True)
         if core.REPORT != "none":   # opt-in: push the counts tally when online
             core.report()
+        if core.SYNC != "none":     # store-and-forward: flush buffered records
+            core.sync()
 
 
 def main():
