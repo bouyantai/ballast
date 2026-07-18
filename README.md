@@ -298,19 +298,23 @@ BALLAST_POLICY_FILE=./my_policy.json python3 proxy.py
 
 ## Framework control tagging
 
-A policy pack can carry a `controls` block that maps record kinds to control ids
-from a framework (for example NIST AI RMF). When present, each record is tagged
-with the controls it provides evidence toward, and you can pull the evidence for
-one control:
+A policy pack can carry a `controls` block that tags records against a framework's
+controls two ways: **ambient** controls (no matcher) label every record of a kind,
+for controls that genuinely cover all activity; **matcher** controls fire only when
+a record's content matches (keyword/regex), so the tag is real evidence, and
+`on_match: flag` also flags it. Then you pull the evidence for one control:
 
 ```bash
-ballast log --control 'MEASURE 2.8'   # every record evidencing this control
+ballast log --control '164.502(b)'   # records where that control's matcher fired
 ```
 
-These tags are a convenience index, not a compliance claim. They point an auditor
-at records relevant to a control; they do not assert the control is satisfied.
-Ballast captures the record, the auditor evaluates it. A starter NIST AI RMF pack
-ships in [`packs/`](packs/) — revise it for your own context.
+Set `"extends_default": true` in the pack so its matchers layer on top of Ballast's
+built-in danger detection instead of replacing it. These tags are a convenience
+index, not a compliance claim: they point an auditor at records relevant to a
+control; they do not assert the control is satisfied. Ballast captures the record,
+the auditor evaluates it. A HIPAA pack (with matchers) and starter NIST / EU AI Act
+packs ship in [`packs/`](packs/) — see [`packs/README.md`](packs/README.md) and
+revise for your own context.
 
 ## No dependencies
 Pure Python standard library. Nothing to `pip install`. Runs on constrained /

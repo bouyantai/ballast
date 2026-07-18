@@ -106,17 +106,30 @@ _DEFAULT_POLICY = {
 def _load_policy():
     """Load the active policy. Deployer overrides via BALLAST_POLICY_FILE (JSON
     with keys safe_programs / danger / text_danger / redact). A bad override
-    fails loudly rather than silently running open."""
+    fails loudly rather than silently running open.
+
+    A pack with "extends_default": true is ADDED to the built-in detection rather
+    than replacing it, so a framework pack (e.g. HIPAA) can layer its matchers and
+    extra redaction on top WITHOUT turning off Ballast's normal danger detection."""
     data = _DEFAULT_POLICY
     path = os.environ.get("BALLAST_POLICY_FILE")
     if path:
         with open(path) as f:
             data = json.load(f)
+    base = _DEFAULT_POLICY if data.get("extends_default") else {}
+
+    def merged(key):
+        out = []
+        for item in list(base.get(key, [])) + list(data.get(key, [])):
+            if item not in out:
+                out.append(item)
+        return out
+
     return (
-        set(data.get("safe_programs", [])),
-        list(data.get("danger", [])),
-        list(data.get("text_danger", [])),
-        list(data.get("redact", [])),
+        set(merged("safe_programs")),
+        merged("danger"),
+        merged("text_danger"),
+        merged("redact"),
     )
 
 
@@ -124,31 +137,76 @@ SAFE_PROGRAMS, DANGER, TEXT_DANGER, REDACT = _load_policy()
 _REDACT_RX = [re.compile(p) for p in REDACT]
 
 
-def _load_control_tags():
-    """Map record kind -> [control ids] from a framework policy pack's `controls`
-    block, so each record can be tagged with the controls it provides evidence
-    toward (e.g. a NIST AI RMF pack). Empty unless the policy defines controls."""
+def _load_controls():
+    """Read a framework pack's `controls` block into two structures:
+
+      AMBIENT_TAGS  {kind -> [ids]}   controls with NO `match` block. These are
+                                      record-keeping/audit-control style controls
+                                      that genuinely apply to ALL records of a kind
+                                      (e.g. HIPAA 164.312(b) "record activity").
+
+      MATCHERS      [{id, kinds, text, regex, flag}]   controls WITH a `match`
+                                      block. These fire only when a record's
+                                      content matches, so the tag is content-driven
+                                      evidence (e.g. PHI appeared -> 164.502(b)),
+                                      not a blanket label. `on_match: flag` also
+                                      raises the record's visibility (counts/alert).
+
+    Empty unless the active policy defines controls."""
     path = os.environ.get("BALLAST_POLICY_FILE")
     if not path:
-        return {}
+        return {}, []
     try:
         with open(path) as f:
             data = json.load(f)
     except Exception:
-        return {}
-    tags = {}
+        return {}, []
+    ambient, matchers = {}, []
     for c in data.get("controls", []):
         cid = c.get("id")
         if not cid:
             continue
-        for kind in c.get("record_kinds", []):
-            tags.setdefault(kind, [])
-            if cid not in tags[kind]:
-                tags[kind].append(cid)
-    return tags
+        m = c.get("match")
+        if m:
+            rx = []
+            for p in m.get("regex", []):
+                try:
+                    rx.append(re.compile(p))
+                except re.error:
+                    pass  # a bad pattern must not take down logging
+            matchers.append({
+                "id": cid,
+                "kinds": set(c.get("record_kinds") or ["model_call", "tool_call"]),
+                "text": [t.lower() for t in m.get("text", [])],
+                "regex": rx,
+                "flag": c.get("on_match") == "flag",
+            })
+        else:
+            for kind in c.get("record_kinds", []):
+                ambient.setdefault(kind, [])
+                if cid not in ambient[kind]:
+                    ambient[kind].append(cid)
+    return ambient, matchers
 
 
-CONTROL_TAGS = _load_control_tags()
+AMBIENT_TAGS, MATCHERS = _load_controls()
+
+
+def _match_controls(kind, content):
+    """Return [(control_id, is_flag)] for every matcher that fires on this record's
+    content. Run on the RAW content (before redaction masks it), so detection sees
+    what actually happened even though storage is redacted. Cheap keyword/regex —
+    a heuristic starting point, not clinical NLP; expect false positives."""
+    if not MATCHERS:
+        return []
+    text = " ".join(v for v in content.values() if isinstance(v, str)).lower()
+    hits = []
+    for m in MATCHERS:
+        if kind not in m["kinds"]:
+            continue
+        if any(t in text for t in m["text"]) or any(rx.search(text) for rx in m["regex"]):
+            hits.append((m["id"], m["flag"]))
+    return hits
 
 
 def safe_verdict(reason="could not evaluate"):
@@ -238,6 +296,7 @@ def _rotate_if_needed():
 
 def _emit(kind, meta, content, decision=None):
     """Write one tiered, hash-chained (optionally sealed) record."""
+    control_hits = _match_controls(kind, content)  # detect on TRUE content, pre-redaction
     if REDACT_MODE != "off":
         meta = {k: (redact(v) if isinstance(v, str) else v) for k, v in meta.items()}
         content = {k: redact(v) for k, v in content.items()}
@@ -250,10 +309,21 @@ def _emit(kind, meta, content, decision=None):
         "chars": len(blob),
         "content_hash": _sha(blob),
     }
-    if _store_content(decision):
+
+    # Control tags = ambient (this kind always relevant) + triggered (content matched
+    # a framework matcher). A triggered `flag` also forces content storage so the
+    # evidence is captured, and raises the record's visibility.
+    controls = list(AMBIENT_TAGS.get(kind, []))
+    flagged = False
+    for cid, is_flag in control_hits:
+        if cid not in controls:
+            controls.append(cid)
+        flagged = flagged or is_flag
+
+    if _store_content(decision) or flagged:
         rec["content"] = {k: (v or "")[:MAX_CONTENT_CHARS] for k, v in content.items()}
-    if CONTROL_TAGS.get(kind):  # tag the record with the controls it evidences
-        rec["controls"] = CONTROL_TAGS[kind]
+    if controls:
+        rec["controls"] = controls
 
     prev = _last_hash()
     rec["prev"] = prev
@@ -265,6 +335,9 @@ def _emit(kind, meta, content, decision=None):
     with open(AUDIT_FILE, "a") as f:
         f.write(json.dumps(rec) + "\n")
     _set_last_hash(rec["hash"])
+    if flagged:  # a framework matcher fired: count it and alert, like any flag
+        _counts["flagged"] += 1
+        _notify("policy", f"{kind} relevant to " + ", ".join(c for c, isf in control_hits if isf))
     heartbeat()  # activity proves liveness (throttled)
 
 

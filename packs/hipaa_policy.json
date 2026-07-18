@@ -2,68 +2,81 @@
   "framework": {
     "name": "HIPAA Security Rule (45 CFR Part 164, Subpart C)",
     "short": "HIPAA",
-    "citation": "45 CFR Part 164",
+    "citation": "45 CFR Part 164; PHI identifiers per Safe Harbor 164.514(b)(2)",
     "source": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C",
-    "note": "A convenience index, NOT a compliance claim or legal advice. These are the HIPAA Security Rule safeguards a runtime audit record of an AI system handling ePHI is most relevant to. A tag means a record may be relevant to that safeguard for review; it does not assert the safeguard is met. IMPORTANT: an audit trail of a system that handles ePHI is itself ePHI and must be protected accordingly (Ballast redacts by default, but the trail is in scope). Ballast is not a full HIPAA solution. Revise for your own context."
+    "note": "A convenience index, NOT a compliance claim or legal advice. This pack keeps Ballast's normal detection (extends_default) and ADDS HIPAA-relevant matchers: when clinical or PHI context appears in the AI's exchange or a tool action, Ballast flags the record and tags it to the relevant Security Rule provision so an auditor can pull it. Matchers are keyword/regex heuristics based on the Safe Harbor identifier list (164.514(b)(2)) plus common clinical terms; expect false positives, this is a starting point, not clinical NLP. IMPORTANT: an audit trail of a system handling ePHI is itself ePHI and must be protected accordingly (redaction is on by default and this pack adds MRN redaction, but the trail is in scope). Integrity (164.312(c)) is provided by the tamper-evident hash-chain, checked with `ballast verify`, not a per-record tag. Not a full HIPAA solution. Revise for your own context."
   },
+  "extends_default": true,
   "safe_programs": [],
   "danger": [],
   "text_danger": [],
   "redact": [
-    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
-    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
-    "\\b(?:\\d[ -]?){13,16}\\b",
-    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
+    "(?i)\\bmrn[\\s:#-]*\\d{3,}"
   ],
   "controls": [
     {
       "id": "164.312(b)",
       "title": "Audit controls",
-      "summary": "Implement mechanisms that record and examine activity in systems that contain or use ePHI.",
-      "relevance": "Ballast is an audit-control mechanism: it records and lets you examine the AI system's activity.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
+      "summary": "Implement mechanisms that record and examine activity in information systems that contain or use ePHI.",
+      "relevance": "Ballast records and lets you examine every model exchange and action; this control applies to all activity (ambient), so every record carries it.",
+      "ambient": true,
+      "record_kinds": ["model_call", "tool_call"]
     },
     {
-      "id": "164.308(a)(1)(ii)(D)",
-      "title": "Information system activity review",
-      "summary": "Regularly review records of information system activity such as audit logs and incident reports.",
-      "relevance": "Ballast's trail is the record of activity to be reviewed; ballast log and summary support that review.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "164.312(c)",
-      "title": "Integrity",
-      "summary": "Protect ePHI from improper alteration or destruction, with a mechanism to corroborate it has not been altered.",
-      "relevance": "Ballast's hash-chained, optionally sealed trail is relevant to detecting improper alteration and to integrity review.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
+      "id": "164.502(b)",
+      "title": "Minimum necessary (PHI present)",
+      "summary": "Uses and disclosures of PHI must be limited to the minimum necessary. PHI combines health information with the identifiers listed at 164.514(b)(2) (names, dates, MRN, health-plan/account numbers, contacts).",
+      "relevance": "When clinical or PHI context appears in the exchange or a tool action, Ballast flags and tags the record here so an auditor can review whether only the minimum-necessary PHI was used. Common identifiers are redacted in storage.",
+      "on_match": "flag",
+      "record_kinds": ["model_call", "tool_call"],
+      "match": {
+        "text": [
+          "patient",
+          "diagnos",
+          "prognosis",
+          "medical record",
+          "health record",
+          "ephi",
+          "prescription",
+          "prescribed",
+          "medication",
+          "treatment plan",
+          "symptom",
+          "clinical",
+          "physician",
+          "health plan",
+          "beneficiary",
+          "medicaid",
+          "medicare",
+          "date of birth",
+          "lab result",
+          "icd-10",
+          "icd10",
+          "cpt code"
+        ],
+        "regex": ["(?i)\\bmrn[\\s:#-]*\\d{3,}"]
+      }
     },
     {
       "id": "164.308(a)(6)(ii)",
       "title": "Security incident procedures (response and reporting)",
-      "summary": "Identify and respond to suspected or known security incidents and document them and their outcomes.",
-      "relevance": "Ballast flags and records incidents (dangerous or blocked actions) with a tamper-evident, timestamped trail relevant to incident identification and documentation.",
-      "record_kinds": [
-        "flag"
-      ]
-    },
-    {
-      "id": "164.502(b)",
-      "title": "Minimum necessary",
-      "summary": "Limit PHI to the minimum necessary to accomplish the intended purpose.",
-      "relevance": "Ballast redacts PII and PHI from stored records by default, relevant to keeping the audit trail to the minimum necessary.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
+      "summary": "Identify and respond to suspected or known security incidents, mitigate their effects, and document them.",
+      "relevance": "When the exchange or an action contains language suggesting a security incident (breach, unauthorized access, exfiltration), Ballast flags and tags the record for incident review.",
+      "on_match": "flag",
+      "record_kinds": ["model_call", "tool_call"],
+      "match": {
+        "text": [
+          "breach",
+          "unauthorized access",
+          "unauthorized disclosure",
+          "data leak",
+          "exfiltrat",
+          "ransomware",
+          "compromised credential",
+          "security incident"
+        ],
+        "regex": []
+      }
     }
   ]
 }
