@@ -9,7 +9,7 @@ intents, and keeps a **tamper-evident, edge-safe** log.
 ## A quick look
 
 An agent that has never heard of Ballast tries to wipe a folder. Ballast, running
-as a proxy in front of the model, catches the intent — fully offline:
+as a proxy in front of the model, catches the intent, fully offline:
 
 ```text
 $ python3 agent.py "delete every file here"
@@ -18,33 +18,33 @@ $ python3 agent.py "delete every file here"
 [ballast] ⚠  FLAGGED dangerous intent: ['rm -rf', 'rm -r']
 
 $ ballast verify
-PASS: OK — 12 records, chain intact
+PASS: OK, 12 records, chain intact
 ```
 
 ## Architecture: one core, thin adapters
 
 ```
                  ┌──────────── core.py ────────────┐
-                 │  decide()   — allow / block      │   built once
-                 │  audit      — tiered, hash-chain │
-                 │  scan_text  — flag danger        │
+                 │  decide()   - allow / block      │   built once
+                 │  audit      - tiered, hash-chain │
+                 │  scan_text  - flag danger        │
                  └───────┬──────────────────┬───────┘
               ┌──────────▼─────┐    ┌────────▼──────────┐
-              │ proxy.py       │    │ (SDK adapter —    │
+              │ proxy.py       │    │ (SDK adapter -    │
               │ Option 1       │    │  planned)         │
               │ zero-touch     │    │                   │
               └────────────────┘    └───────────────────┘
 
-  cli.py — read-only tools over the trail: log · summary · verify · attest
+  cli.py: read-only tools over the trail: log · summary · verify · attest
 ```
 
-- **`core.py`** — the shared brain: policy, edge-safe tamper-evident audit, content scanning, `--verify`.
-- **`proxy.py`** — **Option 1 (zero-touch):** sits in front of the model; audits every
+- **`core.py`**: the shared brain: policy, edge-safe tamper-evident audit, content scanning, `--verify`.
+- **`proxy.py`**, **Option 1 (zero-touch):** sits in front of the model; audits every
   prompt/response and flags dangerous intents. The agent needs no changes.
-- **`agent.py`** — a small demonstration agent used to exercise the proxy. It
+- **`agent.py`**: a small demonstration agent used to exercise the proxy. It
   does **not** import Ballast, showing that no changes to the agent are required.
 
-## Quick start (Option 1 — the proxy)
+## Quick start (Option 1: the proxy)
 
 Three terminals:
 
@@ -82,18 +82,18 @@ detects and flags the intent, fully offline:
 {"kind": "flag", "matched": ["rm -rf", "rm -r"], "content": {"text": "ACTION: run_shell | rm -rf *"}, ...}
 
 $ python3 core.py --verify
-PASS: OK — 12 records, chain intact
+PASS: OK, 12 records, chain intact
 ```
 
 ### What the proxy can and can't do
 - **Can:** log every prompt/response with near-zero weight; flag a dangerous
   command the model proposes; run fully offline.
-- **Can't:** stop a tool from actually executing — it never observes execution.
+- **Can't:** stop a tool from actually executing; it never observes execution.
   Blocking a tool at execution time is planned for a future SDK adapter.
 
 ## Deployment
 
-Ballast is not a cloud service — it's a small process you run **next to your
+Ballast is not a cloud service; it's a small process you run **next to your
 agent** (same machine or same local network). Deploying it is three steps: run
 the proxy, point your agent at it, keep it alive.
 
@@ -114,7 +114,7 @@ pip install git+https://github.com/bouyantai/ballast
 python3 proxy.py          # or, if pip-installed:  ballast-proxy
 ```
 
-**As a service — Linux (systemd), recommended for edge devices:**
+**As a service, Linux (systemd), recommended for edge devices:**
 ```ini
 # /etc/systemd/system/ballast.service
 [Unit]
@@ -137,7 +137,7 @@ sudo mkdir -p /var/lib/ballast
 sudo systemctl enable --now ballast
 ```
 
-**As a service — other platforms:**
+**As a service, other platforms:**
 - **macOS:** run under `launchd` (a LaunchAgent or LaunchDaemon plist).
 - **Windows:** register as a service (e.g. NSSM) or a Scheduled Task.
 
@@ -145,7 +145,7 @@ sudo systemctl enable --now ballast
 
 ### Point your agent at it
 
-Change only the model base URL — nothing else about the agent changes:
+Change only the model base URL; nothing else about the agent changes:
 
 | Your agent talks to… | …point it at Ballast instead |
 |---|---|
@@ -163,7 +163,7 @@ For the bundled demo agent: `OLLAMA_HOST=localhost:8100 python3 agent.py "..."`
 
 ## Reading the trail (CLI)
 
-Read-only, streaming, stdout-only — works over SSH on a headless box.
+Read-only, streaming, stdout-only; works over SSH on a headless box.
 (From a clone, use `python3 cli.py <cmd>`; after `pip install`, just `ballast`.)
 
 ```bash
@@ -182,7 +182,7 @@ ballast attest             # a portable, optionally-sealed proof of state
   Disable with `BALLAST_REDACT=off`; customise via the policy's `redact` list.
 - **Optional sealing.** Set `BALLAST_SIGN_KEY` and every record is HMAC-sealed;
   `ballast verify` then also proves it was signed by *your* key, and `ballast attest`
-  emits a portable proof of the trail's state. Pure standard library — no crypto deps.
+  emits a portable proof of the trail's state. Pure standard library, no crypto deps.
 
 ## Fail-safe & health (for unattended devices)
 
@@ -265,30 +265,30 @@ known response shape, and a determined model or agent can evade it. Treat it as 
 safety net, not a guarantee. The record and the flag are always written either way.
 
 ## Configuration (env vars)
-- `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
-- `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
-- `BALLAST_AUDIT_FILE` — where the audit trail is written (default `./ballast_audit.jsonl`).
-- `BALLAST_LOG_CONTENT=events|always|never` — how much full content to store (default `events` = lean).
-- `BALLAST_MAX_BYTES` — rotate the log at this size (default 2 MB).
-- `BALLAST_POLICY_FILE` — path to a JSON policy that overrides the built-in default (see **Policy** below).
-- `BALLAST_REDACT=on|off` — scrub PII/secrets from stored content (default `on`).
-- `BALLAST_SIGN_KEY` — if set, HMAC-seal every record (tamper-evidence + authenticity).
-- `BALLAST_ALERT` — where flag/block alerts go: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
-- `BALLAST_SESSION` — group records under a fixed run id (default: random per process).
-- `BALLAST_FAIL=closed|open` — behavior when Ballast cannot evaluate an action (default `closed`).
-- `BALLAST_UPSTREAM_TIMEOUT` — seconds before a hung model call is aborted (default `30`).
-- `BALLAST_HEARTBEAT_SEC` — liveness heartbeat interval (default `30`).
-- `BALLAST_ANCHOR` — where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
-- `BALLAST_REPORT` — opt-in public-counter endpoint; sends counts only (default `none`).
-- `BALLAST_REPORT_KEY` — optional shared secret sent as `x-ballast-key` so the counter can reject spoofed counts.
-- `BALLAST_SYNC` — store-and-forward destination for the audit trail: `none` (default), `file:PATH`, `command:CMD`, `webhook:URL`.
-- `BALLAST_BLOCK=off|on` — EXPERIMENTAL: withhold a flagged model response instead of only recording it (default `off`).
+- `BALLAST_UPSTREAM`: the real model endpoint to forward to (default `http://localhost:11434`).
+- `BALLAST_PROXY_PORT`: port the proxy listens on (default `8100`).
+- `BALLAST_AUDIT_FILE`: where the audit trail is written (default `./ballast_audit.jsonl`).
+- `BALLAST_LOG_CONTENT=events|always|never`: how much full content to store (default `events` = lean).
+- `BALLAST_MAX_BYTES`: rotate the log at this size (default 2 MB).
+- `BALLAST_POLICY_FILE`: path to a JSON policy that overrides the built-in default (see **Policy** below).
+- `BALLAST_REDACT=on|off`: scrub PII/secrets from stored content (default `on`).
+- `BALLAST_SIGN_KEY`: if set, HMAC-seal every record (tamper-evidence + authenticity).
+- `BALLAST_ALERT`: where flag/block alerts go: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_SESSION`: group records under a fixed run id (default: random per process).
+- `BALLAST_FAIL=closed|open`: behavior when Ballast cannot evaluate an action (default `closed`).
+- `BALLAST_UPSTREAM_TIMEOUT`: seconds before a hung model call is aborted (default `30`).
+- `BALLAST_HEARTBEAT_SEC`: liveness heartbeat interval (default `30`).
+- `BALLAST_ANCHOR`: where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_REPORT`: opt-in public-counter endpoint; sends counts only (default `none`).
+- `BALLAST_REPORT_KEY`: optional shared secret sent as `x-ballast-key` so the counter can reject spoofed counts.
+- `BALLAST_SYNC`: store-and-forward destination for the audit trail: `none` (default), `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_BLOCK=off|on`: EXPERIMENTAL: withhold a flagged model response instead of only recording it (default `off`).
 
 ## Policy (what counts as dangerous)
 
-Ballast core is **agnostic** — it does not know what any given agent's tools
+Ballast core is **agnostic**: it does not know what any given agent's tools
 mean. What ships is a sensible **default policy for shell-command agents**
-(`safe_programs` / `danger` / `text_danger`) — a starting point, not universal
+(`safe_programs` / `danger` / `text_danger`), a starting point, not universal
 truth. Define your own for your agent by copying `default_policy.json`, editing
 it, and pointing `BALLAST_POLICY_FILE` at it:
 
@@ -313,7 +313,7 @@ built-in danger detection instead of replacing it. These tags are a convenience
 index, not a compliance claim: they point an auditor at records relevant to a
 control; they do not assert the control is satisfied. Ballast captures the record,
 the auditor evaluates it. A HIPAA pack (with matchers) and starter NIST / EU AI Act
-packs ship in [`packs/`](packs/) — see [`packs/README.md`](packs/README.md) and
+packs ship in [`packs/`](packs/); see [`packs/README.md`](packs/README.md) and
 revise for your own context.
 
 ## No dependencies
@@ -321,5 +321,5 @@ Pure Python standard library. Nothing to `pip install`. Runs on constrained /
 offline / air-gapped machines where a heavier stack won't fit.
 
 ## License
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
