@@ -70,5 +70,18 @@ class ConsoleLineTests(unittest.TestCase):
         self.assertNotIn("FLAGGED", line)
 
 
+class BannerTests(unittest.TestCase):
+    """The startup banner must show both integration routes and read as examples,
+    so it never regresses to implying an Ollama-only, must-run-agent.py workflow."""
+
+    def test_shows_both_routes_port_and_reads_as_example(self):
+        b = proxy._startup_banner()
+        self.assertIn(f":{proxy.LISTEN_PORT}", b)   # the real listen port
+        self.assertIn("/v1", b)                     # OpenAI-compatible route
+        self.assertIn("OPENAI_API_BASE", b)
+        self.assertIn("OLLAMA_HOST", b)             # Ollama-native route
+        self.assertIn("example", b.lower())         # framed as examples, not steps
+
+
 if __name__ == "__main__":
     unittest.main()

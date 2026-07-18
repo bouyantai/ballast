@@ -14,9 +14,12 @@ reply. It does not observe tool execution, which happens inside the agent — th
 is the role of a future SDK adapter.
 
 Run it:
-    python3 proxy.py                     # listens on :8100, forwards to Ollama
-    # then, in another terminal:
-    OLLAMA_HOST=localhost:8100 python3 agent.py "list the files here"
+    python3 proxy.py            # listens on :8100, forwards to Ollama by default
+
+Then point ANY agent at the proxy, sending its model calls here instead of to the
+model. Two common ways, depending on what the agent speaks (both are examples):
+    OpenAI-compatible:  OPENAI_API_BASE=http://localhost:8100/v1   (Aider, LangChain, openai)
+    Ollama-native:      OLLAMA_HOST=localhost:8100                 (ollama client, bundled agent.py)
 """
 
 import json
@@ -175,9 +178,27 @@ def _heartbeat_loop():
             core.sync()
 
 
+def _startup_banner():
+    """What is listening, plus EXAMPLE ways to point an agent at it. These are
+    examples, not required steps: any agent works by sending its model calls to
+    this address instead of to the model. Reflects the real port, upstream, and
+    loaded pack, so the banner never misstates the running config."""
+    pack = os.environ.get("BALLAST_POLICY_FILE")
+    return "\n".join([
+        f"Ballast proxy listening on :{LISTEN_PORT}  ->  {UPSTREAM}",
+        f"Policy pack: {pack}" if pack else "Policy pack: none (built-in default)",
+        "",
+        "Point any agent here by sending its model calls to the proxy instead of to",
+        "the model. Pick the line matching what your agent speaks (these are examples):",
+        f"  OpenAI-compatible:  OPENAI_API_BASE=http://localhost:{LISTEN_PORT}/v1   (Aider, LangChain, openai)",
+        f"  Ollama-native:      OLLAMA_HOST=localhost:{LISTEN_PORT}                 (ollama client, bundled agent.py)",
+        "",
+        "Read the trail:  python3 cli.py log   (also: summary, verify)",
+    ])
+
+
 def main():
-    print(f"Ballast proxy listening on :{LISTEN_PORT}  ->  {UPSTREAM}")
-    print(f"Point an agent at it:  OLLAMA_HOST=localhost:{LISTEN_PORT} python3 agent.py \"...\"")
+    print(_startup_banner())
     core.log_system("startup", f"proxy on :{LISTEN_PORT} -> {UPSTREAM}")
     core.heartbeat(force=True)
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
