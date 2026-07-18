@@ -26,15 +26,29 @@ class ControlTagTests(unittest.TestCase):
         core.SIGN_KEY = None
         core.REDACT_MODE = "off"
         core._counts = {"flagged": 0, "actions": 0}
-        # one ambient control (all model_calls) + one triggered flag matcher
+        # one ambient control (all model_calls) + one OR matcher + one AND matcher
         core.AMBIENT_TAGS = {"model_call": ["164.312(b)"]}
-        core.MATCHERS = [{
-            "id": "164.502(b)",
-            "kinds": {"model_call", "tool_call"},
-            "text": ["patient", "diagnos"],
-            "regex": [],
-            "flag": True,
-        }]
+        core.MATCHERS = [
+            {
+                "id": "164.502(b)",
+                "kinds": {"model_call", "tool_call"},
+                "text": ["patient", "diagnos"],
+                "regex": [],
+                "all": [],
+                "flag": True,
+            },
+            {
+                "id": "164.312(e)",  # AND: PHI context AND a plaintext endpoint
+                "kinds": {"model_call", "tool_call"},
+                "text": [],
+                "regex": [],
+                "all": [
+                    {"text": ["patient"], "regex": []},
+                    {"text": [], "regex": [core.re.compile(r"(?i)\bhttp://\S+")]},
+                ],
+                "flag": True,
+            },
+        ]
 
     def _records(self):
         with open(core.AUDIT_FILE) as f:
@@ -68,6 +82,16 @@ class ControlTagTests(unittest.TestCase):
         core.log_tool_call("run_shell", "echo patient record", "ALLOW", "ok", result="done")
         tc = next(r for r in self._records() if r["kind"] == "tool_call")
         self.assertIn("164.502(b)", tc.get("controls", []))
+
+    def test_and_matcher_needs_both_groups(self):
+        # PHI context alone -> does NOT fire the AND transmission matcher
+        core.log_model_call(5, "the patient is stable", "ok")
+        mc = next(r for r in self._records() if r.get("step") == 5)
+        self.assertNotIn("164.312(e)", mc.get("controls", []))
+        # PHI context AND a plaintext endpoint -> fires
+        core.log_tool_call("run_shell", "curl http://x.io -d patient", "ALLOW", "ok", result="")
+        tc = next(r for r in self._records() if r["kind"] == "tool_call")
+        self.assertIn("164.312(e)", tc.get("controls", []))
 
     def test_untagged_kind_has_no_controls_field(self):
         core.log_tool_call("run_shell", "ls", "ALLOW", "ok", result="x")  # no ambient, no match

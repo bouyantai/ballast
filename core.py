@@ -137,6 +137,18 @@ SAFE_PROGRAMS, DANGER, TEXT_DANGER, REDACT = _load_policy()
 _REDACT_RX = [re.compile(p) for p in REDACT]
 
 
+def _compile_group(g):
+    """Compile one match group: text substrings (lowered) + regex. A group HITS if
+    any of its text or regex matches (an OR)."""
+    rx = []
+    for p in g.get("regex", []):
+        try:
+            rx.append(re.compile(p))
+        except re.error:
+            pass  # a bad pattern must not take down logging
+    return {"text": [t.lower() for t in g.get("text", [])], "regex": rx}
+
+
 def _load_controls():
     """Read a framework pack's `controls` block into two structures:
 
@@ -145,11 +157,13 @@ def _load_controls():
                                       that genuinely apply to ALL records of a kind
                                       (e.g. HIPAA 164.312(b) "record activity").
 
-      MATCHERS      [{id, kinds, text, regex, flag}]   controls WITH a `match`
-                                      block. These fire only when a record's
-                                      content matches, so the tag is content-driven
-                                      evidence (e.g. PHI appeared -> 164.502(b)),
-                                      not a blanket label. `on_match: flag` also
+      MATCHERS      [{id, kinds, text, regex, all, flag}]   controls WITH a `match`
+                                      block. Fire only when content matches, so the
+                                      tag is evidence, not a blanket label. A match
+                                      block is either an OR (top-level `text`/`regex`,
+                                      any hits) or an AND (`all`: a list of groups,
+                                      EVERY group must hit — e.g. PHI context AND a
+                                      plaintext endpoint). `on_match: flag` also
                                       raises the record's visibility (counts/alert).
 
     Empty unless the active policy defines controls."""
@@ -168,17 +182,14 @@ def _load_controls():
             continue
         m = c.get("match")
         if m:
-            rx = []
-            for p in m.get("regex", []):
-                try:
-                    rx.append(re.compile(p))
-                except re.error:
-                    pass  # a bad pattern must not take down logging
+            top = _compile_group(m)                                   # OR group
+            allgroups = [_compile_group(g) for g in m.get("all", [])]  # AND of OR groups
             matchers.append({
                 "id": cid,
                 "kinds": set(c.get("record_kinds") or ["model_call", "tool_call"]),
-                "text": [t.lower() for t in m.get("text", [])],
-                "regex": rx,
+                "text": top["text"],
+                "regex": top["regex"],
+                "all": allgroups,
                 "flag": c.get("on_match") == "flag",
             })
         else:
@@ -190,6 +201,11 @@ def _load_controls():
 
 
 AMBIENT_TAGS, MATCHERS = _load_controls()
+
+
+def _group_hits(text, grp):
+    return (any(t in text for t in grp["text"])
+            or any(rx.search(text) for rx in grp["regex"]))
 
 
 def _match_controls(kind, content):
@@ -204,7 +220,11 @@ def _match_controls(kind, content):
     for m in MATCHERS:
         if kind not in m["kinds"]:
             continue
-        if any(t in text for t in m["text"]) or any(rx.search(text) for rx in m["regex"]):
+        if m["all"]:                      # AND: every group must hit
+            fired = all(_group_hits(text, g) for g in m["all"])
+        else:                             # OR: any text/regex hits
+            fired = _group_hits(text, m)
+        if fired:
             hits.append((m["id"], m["flag"]))
     return hits
 

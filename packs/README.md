@@ -15,8 +15,12 @@ A pack's `controls` block maps records to framework control ids two ways:
   `record_kinds`. Use it only where the control genuinely covers all activity
   (e.g. HIPAA 164.312(b) "record and examine activity"). It's an honest
   blanket label, not per-record evidence.
-- **Matcher control** — has a `match` block (`text` substrings and/or `regex`).
-  Tags a record *only when its content matches*, so the tag is real evidence.
+- **Matcher control** — has a `match` block. Tags a record *only when its content
+  matches*, so the tag is real evidence. Two forms:
+  - **OR** — top-level `text` substrings and/or `regex`; fires if any hit.
+  - **AND** — an `all` list of groups; fires only when *every* group hits (e.g.
+    PHI context **and** a plaintext endpoint → possible unencrypted transmission).
+
   Add `"on_match": "flag"` to also raise the record's visibility (it's counted
   and alerted like any flag, and its content is stored). Matchers run on the raw
   content **before** redaction, so detection isn't blinded by masking.
@@ -41,11 +45,15 @@ engine reads only `id`, `record_kinds`, `ambient`, `match`, and `on_match`.
 
 ## Available
 
-- `hipaa_policy.json` — HIPAA Security Rule (45 CFR Part 164). Ambient audit-
-  controls tag (164.312(b)) plus matchers that flag + tag PHI / minimum-necessary
-  (164.502(b), based on the Safe Harbor identifiers) and security-incident
-  language (164.308(a)(6)(ii)). Adds MRN redaction. Note: an audit trail of a
-  system handling ePHI is itself ePHI and must be protected accordingly.
+- `hipaa_policy.json` — HIPAA (45 CFR Part 164). Six runtime-observable provisions:
+  ambient tags for audit controls (164.312(b)), activity review (164.308(a)(1)(ii)(D)),
+  and integrity (164.312(c), evidence is `ballast verify`); matchers that flag + tag
+  PHI/minimum-necessary (164.502(b), Safe Harbor identifiers), unencrypted transmission
+  (164.312(e), PHI **and** a plaintext endpoint), and security-incident language
+  (164.308(a)(6)(ii)). Adds MRN redaction. Deliberately does *not* cover the ~80% of
+  HIPAA that is administrative/physical/organizational process Ballast can't observe.
+  Note: an audit trail of a system handling ePHI is itself ePHI and must be protected
+  accordingly.
 - `nist_ai_rmf_policy.json` — NIST AI RMF 1.0 (7 subcategories). **Ambient-only
   for now** (label-by-kind); matcher conversion pending.
 - `eu_ai_act_policy.json` — EU AI Act (Regulation (EU) 2024/1689, 6 articles).
