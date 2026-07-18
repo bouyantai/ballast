@@ -235,7 +235,7 @@ anything identifying, just two numbers and a timestamp. Enable it by pointing it
 at an endpoint:
 
 ```bash
-BALLAST_REPORT=https://bouyant.ai/ingest ballast-proxy
+BALLAST_REPORT=https://counter.bouyant.ai/ingest ballast-proxy
 ```
 
 The tally is kept locally and pushed opportunistically when online, so a
