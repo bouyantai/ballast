@@ -3,92 +3,170 @@
     "name": "NIST AI Risk Management Framework (AI RMF 1.0)",
     "short": "NIST AI RMF",
     "version": "1.0",
+    "citation": "NIST AI RMF 1.0 (Measure + Manage functions)",
     "source": "https://airc.nist.gov/airmf-resources/playbook/",
-    "full_playbook": "https://airc.nist.gov/docs/playbook.json",
-    "note": "A convenience index, NOT a compliance claim. These are the AI RMF subcategories a runtime record is most relevant to, concentrated in Measure and Manage. Tagging a record here means it may be relevant to that control for an auditor's review; it does not assert the control is satisfied. Ballast captures the record, the auditor evaluates it against whatever framework they bring. Revise these for your own context."
+    "note": "A convenience index, NOT a compliance claim. NIST AI RMF is largely organizational process. Ballast can only observe what flows through it at runtime, so this pack maps to the MEASURE and MANAGE subcategories a runtime record relates to, and is explicitly NOT a GOVERN or MAP tool (those are governance/design process). Two subcategories are AMBIENT (about recording/monitoring all activity): transparency & accountability (MEASURE 2.8) and post-deployment monitoring (MANAGE 4.1). Five are TRIGGERED matchers that flag + tag only when content matches: safety (MEASURE 2.6), security & resilience incl. prompt-injection (MEASURE 2.7), privacy / PII (MEASURE 2.10), risk tracking / anomalies (MEASURE 3.1), and incident & error communication (MANAGE 4.3). extends_default keeps Ballast's normal detection. Matchers are keyword/regex heuristics; expect false positives. Revise for your own context."
   },
+  "extends_default": true,
   "safe_programs": [],
   "danger": [],
   "text_danger": [],
-  "redact": [
-    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
-    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
-    "\\b(?:\\d[ -]?){13,16}\\b",
-    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
-  ],
+  "redact": [],
   "controls": [
     {
-      "id": "MEASURE 2.6",
-      "function": "Measure",
-      "category": "MEASURE-2",
-      "outcome": "AI system is evaluated regularly for safety risks – as identified in the MAP function. The AI system to be deployed is demonstrated to be safe, its residual negative risk does not exceed the risk tolerance, and can fail safely, particularly if made to operate beyond its knowledge limits. Safety metrics implicate system reliability and robustness, real-time monitoring, and response times for AI system failures.",
-      "relevance": "Flagged actions that indicate safety risks are relevant to ongoing safety review.",
-      "record_kinds": [
-        "flag"
-      ]
-    },
-    {
-      "id": "MEASURE 2.7",
-      "function": "Measure",
-      "category": "MEASURE-2",
-      "outcome": "AI system security and resilience – as identified in the MAP function – are evaluated and documented.",
-      "relevance": "Flagged security-relevant actions (destructive commands, exfiltration attempts) are relevant to security and resilience review.",
-      "record_kinds": [
-        "flag"
-      ]
-    },
-    {
       "id": "MEASURE 2.8",
-      "function": "Measure",
-      "category": "MEASURE-2",
-      "outcome": "Risks associated with transparency and accountability – as identified in the MAP function – are examined and documented.",
-      "relevance": "The record of what the agent was asked, decided, and did is relevant to transparency and accountability review.",
+      "title": "Transparency and accountability",
+      "ambient": true,
+      "summary": "Risks associated with transparency and accountability are examined and documented.",
+      "relevance": "The record of what the agent was asked, decided, and did is the transparency/accountability evidence (ambient).",
       "record_kinds": [
         "model_call",
         "tool_call"
-      ]
-    },
-    {
-      "id": "MEASURE 2.10",
-      "function": "Measure",
-      "category": "MEASURE-2",
-      "outcome": "Privacy risk of the AI system – as identified in the MAP function – is examined and documented.",
-      "relevance": "Redaction of PII and secrets in stored records is relevant to privacy review.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "MEASURE 3.1",
-      "function": "Measure",
-      "category": "MEASURE-3",
-      "outcome": "Approaches, personnel, and documentation are in place to regularly identify and track existing, unanticipated, and emergent AI risks based on factors such as intended and actual performance in deployed contexts.",
-      "relevance": "The append-only trail of flagged risks over time is relevant to reviewing how identified risks are tracked.",
-      "record_kinds": [
-        "flag"
       ]
     },
     {
       "id": "MANAGE 4.1",
-      "function": "Manage",
-      "category": "MANAGE-4",
-      "outcome": "Post-deployment AI system monitoring plans are implemented, including mechanisms for capturing and evaluating input from users and other relevant AI actors, appeal and override, decommissioning, incident response, recovery, and change management.",
-      "relevance": "The captured field record of inputs, decisions, and actions is relevant to post-deployment monitoring review.",
+      "title": "Post-deployment monitoring",
+      "ambient": true,
+      "summary": "Post-deployment monitoring plans are implemented, including capturing input, incident response, and change management.",
+      "relevance": "Ballast's continuous trail is the post-deployment monitoring mechanism (ambient).",
       "record_kinds": [
         "model_call",
         "tool_call"
       ]
     },
     {
-      "id": "MANAGE 4.3",
-      "function": "Manage",
-      "category": "MANAGE-4",
-      "outcome": "Incidents and errors are communicated to relevant AI actors including affected communities. Processes for tracking, responding to, and recovering from incidents and errors are followed and documented.",
-      "relevance": "Flagged and recorded incidents (dangerous or blocked actions) are relevant to incident tracking and communication.",
+      "id": "MEASURE 2.6",
+      "title": "Safety",
+      "on_match": "flag",
+      "summary": "The AI system is evaluated for safety risks and demonstrated to fail safely, particularly when operated beyond its knowledge limits.",
+      "relevance": "Fires on safety-risk language (harm, hazard, operating beyond limits); flags and tags it for safety review.",
       "record_kinds": [
-        "flag"
-      ]
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "unsafe",
+          "safety risk",
+          "hazard",
+          "harm",
+          "injury",
+          "physical damage",
+          "collision",
+          "overheat",
+          "operate beyond",
+          "out of bounds",
+          "exceed limit",
+          "emergency stop",
+          "fail safe"
+        ]
+      }
+    },
+    {
+      "id": "MEASURE 2.7",
+      "title": "Security and resilience",
+      "on_match": "flag",
+      "summary": "AI system security and resilience (including against adversarial attacks) are evaluated and documented.",
+      "relevance": "Fires on attack / prompt-injection signals; flags and tags it for security-and-resilience review.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "prompt injection",
+          "jailbreak",
+          "ignore previous instructions",
+          "ignore all previous",
+          "adversarial",
+          "data poisoning",
+          "model extraction",
+          "exploit",
+          "malware",
+          "bypass filter",
+          "override system prompt",
+          "leak system prompt",
+          "developer mode"
+        ]
+      }
+    },
+    {
+      "id": "MEASURE 2.10",
+      "title": "Privacy",
+      "on_match": "flag",
+      "summary": "Privacy risk of the AI system is examined and documented.",
+      "relevance": "Fires when personal data / PII appears in the exchange or an action; flags and tags it for privacy review. Common identifiers are redacted in storage.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "social security",
+          "ssn",
+          "passport number",
+          "home address",
+          "date of birth",
+          "credit card",
+          "biometric",
+          "personal data"
+        ],
+        "regex": [
+          "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
+          "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+          "\\b(?:\\d[ -]?){13,16}\\b"
+        ]
+      }
+    },
+    {
+      "id": "MEASURE 3.1",
+      "title": "Risk tracking",
+      "on_match": "flag",
+      "summary": "Approaches and documentation are in place to regularly identify and track existing, unanticipated, and emergent AI risks.",
+      "relevance": "Fires on anomaly / emergent-risk language; flags and tags it so tracked risks are queryable.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "anomaly",
+          "anomalous",
+          "unexpected behavior",
+          "out of distribution",
+          "distribution shift",
+          "drift",
+          "degraded performance",
+          "hallucinat",
+          "emergent",
+          "unanticipated"
+        ]
+      }
+    },
+    {
+      "id": "MANAGE 4.3",
+      "title": "Incident and error communication",
+      "on_match": "flag",
+      "summary": "Incidents and errors are communicated to relevant actors; processes for tracking, responding to, and recovering from them are documented.",
+      "relevance": "Fires on incident / error language; flags and tags it for incident tracking and communication.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "incident",
+          "error",
+          "failure",
+          "malfunction",
+          "exception",
+          "crash",
+          "outage",
+          "fault",
+          "recovery"
+        ]
+      }
     }
   ]
 }

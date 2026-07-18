@@ -4,33 +4,20 @@
     "short": "EU AI Act",
     "citation": "Regulation (EU) 2024/1689",
     "source": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng",
-    "note": "A convenience index, NOT a compliance claim or legal advice. These obligations apply to HIGH-RISK AI systems (and some to GPAI); most AI is not high-risk under the Act. These are the record-keeping, monitoring, incident, and oversight obligations a runtime audit record is most relevant to. A tag means a record may be relevant to that article for review; it does not assert the obligation is met. Ballast does not perform conformity assessment and does not address the rest of the Act (risk management, data governance, technical documentation, etc.). Revise for your own context."
+    "note": "A convenience index, NOT a compliance claim or legal advice. These obligations apply to HIGH-RISK AI systems (and some to GPAI); most AI is not high-risk under the Act. Ballast can only observe what flows through it (model exchanges and tool actions), so this pack covers the runtime-observable slice and leaves conformity assessment, risk management (Art 9), data governance (Art 10), and technical documentation (Art 11) to your broader program. Two obligations here are inherently AMBIENT (they are about keeping a complete log, so every record is evidence): record-keeping (Art 12) and deployer monitoring + retention (Art 26; Ballast's store-and-forward supports the >=6-month log retention of Art 26(6)). The same trail is also the evidence for a provider keeping the Art 12 logs (Art 19) and for post-market monitoring (Art 72). Two are TRIGGERED matchers that flag + tag only when content matches: human oversight (Art 14) and serious-incident reporting (Art 73). extends_default keeps Ballast's normal detection. Matchers are keyword heuristics; expect false positives. Revise for your own context."
   },
+  "extends_default": true,
   "safe_programs": [],
   "danger": [],
   "text_danger": [],
-  "redact": [
-    "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",
-    "\\b\\d{3}-\\d{2}-\\d{4}\\b",
-    "\\b(?:\\d[ -]?){13,16}\\b",
-    "(?i)\\b(?:bearer\\s+|sk-|api[_-]?key\\s*[:=]\\s*)\\S+"
-  ],
+  "redact": [],
   "controls": [
     {
       "id": "Article 12",
       "title": "Record-keeping",
-      "summary": "High-risk AI systems must technically allow the automatic recording of events (logs) over their lifetime, for traceability of operation.",
-      "relevance": "Ballast is automatic event logging of the AI system's operation, directly relevant to the record-keeping obligation.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "Article 19",
-      "title": "Automatically generated logs",
-      "summary": "Providers must keep the logs referred to in Article 12 that are under their control.",
-      "relevance": "Ballast produces and, with store-and-forward, retains those logs, relevant to keeping automatically generated logs.",
+      "ambient": true,
+      "summary": "High-risk AI systems must technically allow the automatic recording of events (logs) over their lifetime, for traceability.",
+      "relevance": "Ballast is that automatic event log; every record is record-keeping evidence (ambient).",
       "record_kinds": [
         "model_call",
         "tool_call"
@@ -38,41 +25,72 @@
     },
     {
       "id": "Article 26",
-      "title": "Obligations of deployers (monitoring and log retention)",
-      "summary": "Deployers of high-risk AI must monitor operation and retain automatically generated logs for at least six months (26(5), 26(6)).",
-      "relevance": "Ballast's on-device monitoring record and store-and-forward retention are relevant to deployer monitoring and log-keeping.",
+      "title": "Obligations of deployers (monitoring & log retention)",
+      "ambient": true,
+      "summary": "Deployers of high-risk AI must monitor operation (26(5)) and retain automatically generated logs for at least six months (26(6)).",
+      "relevance": "The on-device monitoring record plus store-and-forward retention is evidence for deployer monitoring and log-keeping (ambient).",
       "record_kinds": [
         "model_call",
         "tool_call"
-      ]
-    },
-    {
-      "id": "Article 72",
-      "title": "Post-market monitoring",
-      "summary": "Providers must establish a post-market monitoring system that collects and documents data on system performance.",
-      "relevance": "Ballast's captured field record of inputs, decisions, and actions is relevant to post-market monitoring.",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "Article 73",
-      "title": "Reporting of serious incidents",
-      "summary": "Providers must report serious incidents to the relevant authorities.",
-      "relevance": "Ballast flags and records incidents (dangerous or blocked actions) with a tamper-evident trail relevant to detecting and documenting serious incidents.",
-      "record_kinds": [
-        "flag"
       ]
     },
     {
       "id": "Article 14",
       "title": "Human oversight",
-      "summary": "High-risk AI must be designed so it can be effectively overseen by humans.",
-      "relevance": "Ballast surfaces flagged risky actions for human review, relevant to supporting human oversight.",
+      "on_match": "flag",
+      "summary": "High-risk AI must be designed so natural persons can effectively oversee it, including the ability to intervene or interrupt.",
+      "relevance": "Fires when the exchange or an action signals a high-consequence or autonomous decision a human should be able to review or stop; flags and tags it as an oversight point.",
       "record_kinds": [
-        "flag"
-      ]
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "irreversible",
+          "cannot be undone",
+          "without human",
+          "without approval",
+          "auto-approve",
+          "autonomously",
+          "override safety",
+          "disable safeguard",
+          "bypass approval",
+          "grant access",
+          "delete all",
+          "wipe",
+          "shut down",
+          "emergency stop",
+          "no human in the loop"
+        ]
+      }
+    },
+    {
+      "id": "Article 73",
+      "title": "Reporting of serious incidents",
+      "on_match": "flag",
+      "summary": "Providers must report serious incidents (death or serious harm, serious disruption of critical infrastructure, breach of fundamental rights, serious property/environmental harm) to authorities.",
+      "relevance": "Fires when the exchange or an action contains serious-incident language; flags and tags it for incident review and possible reporting.",
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
+      "match": {
+        "text": [
+          "serious incident",
+          "malfunction",
+          "harm to",
+          "injury",
+          "death",
+          "fundamental rights",
+          "critical infrastructure",
+          "breach",
+          "unauthorized access",
+          "data leak",
+          "exfiltrat",
+          "widespread",
+          "safety incident"
+        ]
+      }
     }
   ]
 }

@@ -54,10 +54,17 @@ engine reads only `id`, `record_kinds`, `ambient`, `match`, and `on_match`.
   HIPAA that is administrative/physical/organizational process Ballast can't observe.
   Note: an audit trail of a system handling ePHI is itself ePHI and must be protected
   accordingly.
-- `nist_ai_rmf_policy.json` — NIST AI RMF 1.0 (7 subcategories). **Ambient-only
-  for now** (label-by-kind); matcher conversion pending.
-- `eu_ai_act_policy.json` — EU AI Act (Regulation (EU) 2024/1689, 6 articles).
-  **Ambient-only for now** (label-by-kind); matcher conversion pending.
+- `eu_ai_act_policy.json` — EU AI Act (Regulation (EU) 2024/1689), high-risk
+  systems. Ambient record-keeping (Art 12) and deployer monitoring/retention
+  (Art 26); matchers that flag + tag human-oversight points (Art 14) and
+  serious-incident language (Art 73). The same trail also evidences provider
+  log-keeping (Art 19) and post-market monitoring (Art 72). Not conformity
+  assessment.
+- `nist_ai_rmf_policy.json` — NIST AI RMF 1.0, Measure + Manage only (not Govern
+  or Map). Ambient transparency (MEASURE 2.8) and post-deployment monitoring
+  (MANAGE 4.1); matchers that flag + tag safety (2.6), security & resilience incl.
+  prompt-injection (2.7), privacy/PII (2.10), risk/anomaly (3.1), and incident/
+  error (MANAGE 4.3).
 
 ## Use
 
