@@ -58,6 +58,11 @@ HEARTBEAT_INTERVAL = int(os.environ.get("BALLAST_HEARTBEAT_SEC", "30"))
 #     fully offline without it.
 ANCHOR = os.environ.get("BALLAST_ANCHOR", "none")  # none | stderr | file:PATH | command:CMD | webhook:URL
 
+# --- optional public counter (opt-in telemetry) — sends COUNTS ONLY, never
+#     content or anything identifying, so a community counter can total flags.
+REPORT = os.environ.get("BALLAST_REPORT", "none")  # none | https://.../ingest
+_counts = {"flagged": 0, "actions": 0}
+
 
 # =========================================================================
 #  POLICY — the DEPLOYER's to define. core is agnostic; what ships is a
@@ -242,13 +247,16 @@ def log_tool_call(tool, arg, decision, reason, result=None):
         content={"arg": arg, "result": result},
         decision=decision,
     )
+    _counts["actions"] += 1
     if decision == "BLOCK":
+        _counts["flagged"] += 1
         _notify("block", f"{tool}: {arg}")
 
 
 def log_flag(where, matched, text):
     """A dangerous intent was spotted in text (e.g. the model proposed `rm -rf`)."""
     _emit("flag", {"where": where, "matched": matched}, {"text": text}, decision="FLAG")
+    _counts["flagged"] += 1
     _notify("flag", f"{matched} in {where}")
 
 
@@ -277,6 +285,42 @@ def _notify(kind, summary):
             urllib.request.urlopen(req, timeout=3)
     except Exception:
         pass  # alerting is best-effort; it must never take the agent down
+
+
+# =========================================================================
+#  LIVE COUNTER — opt-in telemetry. Sends COUNTS ONLY (flagged, actions), never
+#  content or anything identifying, so a public counter can total the dangerous
+#  actions caught across all opted-in agents. Off by default.
+# =========================================================================
+def _pending_report():
+    if _counts["flagged"] == 0 and _counts["actions"] == 0:
+        return None
+    return {
+        "flagged": _counts["flagged"],
+        "actions": _counts["actions"],
+        "reported_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def report():
+    """Opt-in: POST the running tally to BALLAST_REPORT so a community counter can
+    total it. Counts only. Resets on success, keeps the tally on failure so nothing
+    is lost. Returns True if sent."""
+    if REPORT == "none":
+        return False
+    payload = _pending_report()
+    if payload is None:
+        return False
+    try:
+        req = urllib.request.Request(
+            REPORT, data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        return False  # keep the tally and retry next time
+    _counts["flagged"] = 0
+    _counts["actions"] = 0
+    return True
 
 
 # =========================================================================

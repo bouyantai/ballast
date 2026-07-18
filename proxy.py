@@ -100,6 +100,8 @@ def _heartbeat_loop():
     while True:
         time.sleep(core.HEARTBEAT_INTERVAL)
         core.heartbeat(force=True)
+        if core.REPORT != "none":   # opt-in: push the counts tally when online
+            core.report()
 
 
 def main():

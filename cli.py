@@ -13,6 +13,7 @@ so it works over SSH on a headless edge box. Standard library only.
     ballast health              # is Ballast alive? (exit 0=ok, 1=down)
     ballast anchor              # publish the chain head to the external anchor sink
     ballast verify --anchors F  # also prove the trail matches external anchors in F
+    ballast report              # send the opt-in counts tally to BALLAST_REPORT
 """
 
 import argparse
@@ -104,6 +105,13 @@ def cmd_anchor(args):
         print("(no anchor sink configured; set BALLAST_ANCHOR to publish it)", file=sys.stderr)
 
 
+def cmd_report(args):
+    if core.REPORT == "none":
+        print("(opt-in only; set BALLAST_REPORT=https://your-endpoint to enable)", file=sys.stderr)
+        sys.exit(0)
+    print("reported" if core.report() else "(nothing to report yet)")
+
+
 def cmd_attest(args):
     print(json.dumps(core.attest(), indent=2))
 
@@ -144,6 +152,9 @@ def main():
 
     an = sub.add_parser("anchor", help="publish the current chain head to the external anchor sink")
     an.set_defaults(func=cmd_anchor)
+
+    rp = sub.add_parser("report", help="send the opt-in counts tally to BALLAST_REPORT")
+    rp.set_defaults(func=cmd_report)
 
     args = p.parse_args()
     if not getattr(args, "func", None):

@@ -226,6 +226,21 @@ provable after the fact, and only if an honest anchor was recorded before
 compromise and the target stays outside the attacker's reach. For the strongest
 guarantee, pair it with a hardware-backed key.
 
+## Live counter (opt-in, counts only)
+
+Ballast can send a running tally to a public counter so the community can see how
+many dangerous actions have been caught in the field. It is **off by default and
+opt in**, and it sends **counts only**: never a prompt, never content, never
+anything identifying, just two numbers and a timestamp. Enable it by pointing it
+at an endpoint:
+
+```bash
+BALLAST_REPORT=https://bouyant.ai/ingest ballast-proxy
+```
+
+The tally is kept locally and pushed opportunistically when online, so a
+disconnected device loses nothing and reveals nothing until you opt in.
+
 ## Configuration (env vars)
 - `BALLAST_UPSTREAM` — the real model endpoint to forward to (default `http://localhost:11434`).
 - `BALLAST_PROXY_PORT` — port the proxy listens on (default `8100`).
@@ -241,6 +256,7 @@ guarantee, pair it with a hardware-backed key.
 - `BALLAST_UPSTREAM_TIMEOUT` — seconds before a hung model call is aborted (default `30`).
 - `BALLAST_HEARTBEAT_SEC` — liveness heartbeat interval (default `30`).
 - `BALLAST_ANCHOR` — where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
+- `BALLAST_REPORT` — opt-in public-counter endpoint; sends counts only (default `none`).
 
 ## Policy (what counts as dangerous)
 
