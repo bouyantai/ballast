@@ -65,7 +65,16 @@
           "bypass filter",
           "override system prompt",
           "leak system prompt",
-          "developer mode"
+          "developer mode",
+          "security override",
+          "system override",
+          "social engineering",
+          "disregard previous",
+          "disregard your instructions"
+        ],
+        "regex": [
+          "(?i)\\bignore (?:your |all |the )?(?:previous|prior)\\b",
+          "(?i)\\bdisregard (?:your |all |the )?(?:previous|prior|instructions)"
         ]
       }
     },
