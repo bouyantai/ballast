@@ -109,6 +109,70 @@ def _extract(req_json, resp_json):
     return prompt, response
 
 
+def _reassemble_stream(raw):
+    """Reassemble a STREAMED response body into its full text, so streamed replies
+    are captured instead of silently dropped. Handles OpenAI SSE (`data: {json}`
+    lines with choices[].delta) and Ollama ndjson (one JSON object per line with
+    message.content / response). Streamed tool calls are stitched back together and
+    rendered too."""
+    try:
+        s = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+    except Exception:
+        return ""
+    parts = []
+    tool_names, tool_args = {}, {}   # index -> name / concatenated arguments
+    for line in s.splitlines():
+        line = line.strip()
+        if line.startswith("data:"):        # OpenAI SSE prefix
+            line = line[5:].strip()
+        if not line or line == "[DONE]":
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        choices = obj.get("choices")
+        if choices:                          # OpenAI streaming: choices[0].delta
+            delta = (choices[0] or {}).get("delta") or {}
+            if delta.get("content"):
+                parts.append(delta["content"])
+            for tc in delta.get("tool_calls") or []:
+                idx, fn = tc.get("index", 0), (tc.get("function") or {})
+                if fn.get("name"):
+                    tool_names[idx] = fn["name"]
+                if fn.get("arguments"):
+                    tool_args[idx] = tool_args.get(idx, "") + fn["arguments"]
+            continue
+        msg = obj.get("message") or {}       # Ollama streaming: message.content / response
+        if msg.get("content"):
+            parts.append(msg["content"])
+        if obj.get("response"):
+            parts.append(obj["response"])
+        for tc in msg.get("tool_calls") or []:
+            idx, fn = tc.get("index", len(tool_names)), (tc.get("function") or {})
+            if fn.get("name"):
+                tool_names[idx] = fn["name"]
+            args = fn.get("arguments")
+            if args is not None:
+                tool_args[idx] = tool_args.get(idx, "") + (args if isinstance(args, str) else json.dumps(args))
+    text = "".join(parts)
+    tools = "\n".join(f"[tool_call] {tool_names.get(i, '')}({tool_args.get(i, '')})"
+                      for i in sorted(set(tool_names) | set(tool_args)))
+    if tools:
+        text = (text + "\n" + tools).strip()
+    return text
+
+
+def _parse_response(raw):
+    """Return (dict for _extract, was_streamed). A non-streamed body parses directly;
+    a streamed body is reassembled into a single message so it is captured too."""
+    try:
+        return json.loads(raw), False
+    except ValueError:
+        text = _reassemble_stream(raw)
+        return ({"message": {"content": text}} if text else {}), True
+
+
 def _danger_flags(prompt, response):
     """Best-effort danger scan of BOTH sides of the exchange. Intent can arrive in
     the prompt (what the agent was told to do) or the reply (what the model
@@ -206,11 +270,12 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(504, _error_body(f"upstream unavailable: {e}", 504, "upstream_unavailable"))
             return
 
-        # 2. audit the content boundary (best-effort; skip if not plain JSON)
+        # 2. audit the content boundary (handles streamed and non-streamed replies)
         blocked = False
         try:
             req_json = json.loads(body)
-            prompt, response = _extract(req_json, json.loads(resp))
+            resp_json, streamed = _parse_response(resp)
+            prompt, response = _extract(req_json, resp_json)
             _step += 1
             controls, control_hits = core.log_model_call(_step, prompt=prompt, response=response)
             # scan BOTH sides: dangerous intent can arrive in the prompt or the reply
@@ -218,7 +283,7 @@ class Handler(BaseHTTPRequestHandler):
             for where, hits, text in flags:
                 core.log_flag(where, hits, text)
             resp_danger = next((hits for where, hits, _ in flags if where == "model_response"), [])
-            if resp_danger and core.BLOCK == "on":         # EXPERIMENTAL, withholds the reply
+            if resp_danger and core.BLOCK == "on" and not streamed:  # EXPERIMENTAL; can't cleanly block a stream
                 resp = _refusal(req_json, resp_danger)
                 blocked = True
             danger = sorted({h for _, hits, _ in flags for h in hits})
@@ -226,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             if blocked:
                 print(f"[ballast] step {_step}  BLOCKED (experimental)", flush=True)
         except (ValueError, KeyError, TypeError):
-            pass  # streaming or non-JSON body — forward it, just don't parse
+            pass  # unparseable request body — forward it, just don't parse
 
         # 3. hand the response back to the agent (unchanged, or a refusal if blocked)
         self._reply(200 if blocked else status, resp)

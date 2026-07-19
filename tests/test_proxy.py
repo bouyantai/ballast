@@ -56,6 +56,46 @@ class ExtractTests(unittest.TestCase):
         self.assertEqual(prompt, "describe this")
 
 
+class StreamReassemblyTests(unittest.TestCase):
+    """Streamed replies must be reassembled and captured, not dropped."""
+
+    def test_openai_sse_content(self):
+        raw = (b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+               b'data: {"choices":[{"delta":{"content":" world"}}]}\n\n'
+               b'data: [DONE]\n\n')
+        self.assertEqual(proxy._reassemble_stream(raw), "Hello world")
+
+    def test_ollama_ndjson_content(self):
+        raw = (b'{"message":{"content":"Hi"}}\n'
+               b'{"message":{"content":" there"}}\n'
+               b'{"message":{"content":""},"done":true}\n')
+        self.assertEqual(proxy._reassemble_stream(raw), "Hi there")
+
+    def test_streamed_danger_is_captured_and_flaggable(self):
+        # the exact failure that started this: danger in a streamed reply
+        raw = (b'data: {"choices":[{"delta":{"content":"run "}}]}\n\n'
+               b'data: {"choices":[{"delta":{"content":"rm -rf /data"}}]}\n\n'
+               b'data: [DONE]\n\n')
+        resp_json, streamed = proxy._parse_response(raw)
+        self.assertTrue(streamed)
+        _, out = proxy._extract({"messages": [{"role": "user", "content": "x"}]}, resp_json)
+        self.assertIn("rm -rf", core.scan_text(out))
+
+    def test_streamed_tool_call_reassembled(self):
+        raw = (b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"run_command"}}]}}]}\n\n'
+               b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"cmd\\":\\"rm -rf /\\"}"}}]}}]}\n\n'
+               b'data: [DONE]\n\n')
+        out = proxy._reassemble_stream(raw)
+        self.assertIn("run_command", out)
+        self.assertIn("rm -rf", out)
+
+    def test_nonstream_still_parses_and_is_not_marked_streamed(self):
+        resp_json, streamed = proxy._parse_response(b'{"choices":[{"message":{"content":"hi"}}]}')
+        self.assertFalse(streamed)
+        _, out = proxy._extract({"messages": [{"role": "user", "content": "x"}]}, resp_json)
+        self.assertEqual(out, "hi")
+
+
 class ErrorBodyTests(unittest.TestCase):
     def test_json_error_shape(self):
         body = proxy._error_body("upstream unavailable: timed out", 504, "upstream_unavailable")
