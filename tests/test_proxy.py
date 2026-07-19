@@ -114,12 +114,19 @@ class ConsoleLineTests(unittest.TestCase):
         self.assertIn("FLAGGED", line)
         self.assertIn("rm -rf", line)
 
-    def test_policy_flag_is_surfaced(self):
-        # a matcher fired: the console must say so, not "(clean)"
+    def test_policy_match_is_tagged_not_flagged(self):
+        # a control matcher fired: it TAGS the record in place, it does NOT emit a flag
+        # record, so the console must say TAGGED, not FLAGGED
         line = proxy._console_line(3, [], [("164.502(b)", True)], ["164.312(b)", "164.502(b)"])
-        self.assertIn("FLAGGED", line)
+        self.assertIn("TAGGED", line)
+        self.assertNotIn("FLAGGED", line)
         self.assertIn("164.502(b)", line)
         self.assertNotIn("(clean)", line)
+
+    def test_danger_and_policy_shown_separately(self):
+        line = proxy._console_line(5, ["rm -rf"], [("164.502(b)", True)], ["164.502(b)"])
+        self.assertIn("FLAGGED", line)   # danger emits a flag record
+        self.assertIn("TAGGED", line)    # policy tags in place
 
     def test_ambient_controls_shown_without_flag(self):
         line = proxy._console_line(4, [], [], ["164.312(b)"])

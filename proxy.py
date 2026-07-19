@@ -209,17 +209,22 @@ def _error_body(message, code=502, err_type="ballast_error"):
 
 
 def _console_line(step, danger, control_hits, controls):
-    """One human-readable status line. Surfaces danger-text flags AND framework
-    control matches, so a pack doing its job is never silent."""
+    """One human-readable status line. FLAGGED means a danger-text hit, which emits a
+    separate flag record. TAGGED means a policy/control matcher fired, which tags this
+    record in place (no separate record). Kept distinct so the console never implies a
+    flag record that was not written."""
     policy = [c for c, is_flag in control_hits if is_flag]
+    parts = []
     if danger:
-        state = f"FLAGGED  danger={danger}"
-    elif policy:
-        state = f"FLAGGED  policy={policy}"
+        parts.append(f"FLAGGED danger={danger}")
+    if policy:
+        parts.append(f"TAGGED policy={policy}")
+    if parts:
+        state = "  ".join(parts)
     elif controls:
-        state = f"logged   controls={controls}"
+        state = f"logged  controls={controls}"
     else:
-        state = "logged   (clean)"
+        state = "logged  (clean)"
     return f"[ballast] step {step}  {state}"
 
 
