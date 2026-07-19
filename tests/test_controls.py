@@ -103,6 +103,33 @@ class ControlTagTests(unittest.TestCase):
         self.assertTrue(core.verify_chain(core.AUDIT_FILE)[0])
 
 
+class ToolsChosenTests(unittest.TestCase):
+    """The tools_chosen field is written only when the model actually chose tools."""
+
+    def setUp(self):
+        d = tempfile.mkdtemp()
+        core.AUDIT_FILE = os.path.join(d, "a.jsonl")
+        core.CHAIN_FILE = os.path.join(d, "a.chain")
+        core.HEALTH_FILE = os.path.join(d, "a.health")
+        core._last = None
+        core.SIGN_KEY = None
+        core.REDACT_MODE = "off"
+        core.AMBIENT_TAGS = {}
+        core.MATCHERS = []
+
+    def _last(self):
+        with open(core.AUDIT_FILE) as f:
+            return [json.loads(line) for line in f if line.strip()][-1]
+
+    def test_recorded_when_present(self):
+        core.log_model_call(1, "p", "r", tools_chosen=["run_command"])
+        self.assertEqual(self._last().get("tools_chosen"), ["run_command"])
+
+    def test_omitted_when_absent(self):
+        core.log_model_call(2, "p", "r")
+        self.assertNotIn("tools_chosen", self._last())
+
+
 class ModelErrorTests(unittest.TestCase):
     """A failed call must still capture its attempted prompt, even in lean mode."""
 

@@ -372,12 +372,17 @@ def _emit(kind, meta, content, decision=None):
     return controls, control_hits  # so a caller (e.g. the proxy) can report them
 
 
-def log_model_call(step, prompt, response, chose=None):
-    """CONTENT boundary: the agent<->model exchange.
+def log_model_call(step, prompt, response, tools_chosen=None):
+    """CONTENT boundary: the agent<->model exchange. `tools_chosen`, when the model
+    proposed tool calls, records which tool(s) it chose (a queryable summary of the
+    decided action). The field is omitted entirely when there is no tool call.
     Returns (controls, control_hits) so the proxy can report what fired."""
+    meta = {"step": step}
+    if tools_chosen:
+        meta["tools_chosen"] = tools_chosen
     return _emit(
         "model_call",
-        meta={"step": step, "chose": chose or "(n/a)"},
+        meta=meta,
         content={"prompt": prompt, "response": response},
     )
 
@@ -389,7 +394,7 @@ def log_model_error(step, prompt, error):
     lean events mode. Returns (controls, control_hits) like log_model_call."""
     return _emit(
         "model_call",
-        meta={"step": step, "chose": "(n/a)", "error": error},
+        meta={"step": step, "error": error},
         content={"prompt": prompt, "response": ""},
         decision="ERROR",
     )

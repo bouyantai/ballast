@@ -152,6 +152,22 @@ class DangerScanTests(unittest.TestCase):
         self.assertEqual(proxy._danger_flags("clear the cache", "shutil.rmtree('./cache')"), [])
 
 
+class ChosenToolsTests(unittest.TestCase):
+    """tools_chosen summarizes which tools the model picked, from the response text."""
+
+    def test_parses_names_in_order(self):
+        text = ('some reasoning\n[tool_call] run_command({"cmd":"ls"})\n'
+                '[tool_call] set_thermostat({"celsius":21})')
+        self.assertEqual(proxy._chosen_tools(text), ["run_command", "set_thermostat"])
+
+    def test_dedupes(self):
+        text = "[tool_call] run_command(a)\n[tool_call] run_command(b)"
+        self.assertEqual(proxy._chosen_tools(text), ["run_command"])
+
+    def test_empty_when_no_tool_calls(self):
+        self.assertEqual(proxy._chosen_tools("just a normal reply"), [])
+
+
 class BannerTests(unittest.TestCase):
     """The startup banner must show both integration routes and read as examples,
     so it never regresses to implying an Ollama-only, must-run-agent.py workflow."""

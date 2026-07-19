@@ -28,6 +28,7 @@ model. Two common ways, depending on what the agent speaks (both are examples):
 
 import json
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -173,6 +174,21 @@ def _parse_response(raw):
         return ({"message": {"content": text}} if text else {}), True
 
 
+_TOOL_RE = re.compile(r"\[tool_call\]\s*([^\s(]+)\(")
+
+
+def _chosen_tools(response_text):
+    """The tool names the model chose to call, parsed from the captured response.
+    Both the streamed and non-streamed paths render tool calls as `[tool_call]
+    name(...)`, so this one parser covers both. Deduped, order preserved."""
+    seen, out = set(), []
+    for name in _TOOL_RE.findall(response_text or ""):
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
 def _danger_flags(prompt, response):
     """Best-effort danger scan of BOTH sides of the exchange. Intent can arrive in
     the prompt (what the agent was told to do) or the reply (what the model
@@ -277,7 +293,8 @@ class Handler(BaseHTTPRequestHandler):
             resp_json, streamed = _parse_response(resp)
             prompt, response = _extract(req_json, resp_json)
             _step += 1
-            controls, control_hits = core.log_model_call(_step, prompt=prompt, response=response)
+            controls, control_hits = core.log_model_call(
+                _step, prompt=prompt, response=response, tools_chosen=_chosen_tools(response))
             # scan BOTH sides: dangerous intent can arrive in the prompt or the reply
             flags = _danger_flags(prompt, response)
             for where, hits, text in flags:

@@ -42,7 +42,9 @@ def _iter_records(path):
 def _one_line(rec):
     kind = rec.get("kind")
     if kind == "model_call":
-        line = f"model  step {rec.get('step')}  chose={rec.get('chose')}"
+        line = f"model  step {rec.get('step')}"
+        if rec.get("tools_chosen"):
+            line += f"  chose {', '.join(rec['tools_chosen'])}"
         if rec.get("error"):
             line += f"  FAILED: {rec.get('error')}"
         return line
