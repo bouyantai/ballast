@@ -192,8 +192,8 @@ When no one is watching, Ballast defaults to safe behavior:
   internal error), it denies rather than allows. Flip with `BALLAST_FAIL=open` when
   availability matters more than safety for your deployment.
 - **Upstream timeout.** A hung or unreachable model cannot wedge the device. The
-  proxy times out (`BALLAST_UPSTREAM_TIMEOUT`, default 30s), records it, and returns
-  a clear error.
+  proxy times out (`BALLAST_UPSTREAM_TIMEOUT`, default 120s, tuned for local
+  inference), records the attempted prompt, and returns a clean JSON error.
 - **Liveness heartbeat.** Ballast writes a small heartbeat so a supervisor can tell
   whether it has wedged. Check it with `ballast health` (exit 0 = alive, 1 = down)
   and wire that into a systemd or cron healthcheck.
@@ -276,7 +276,10 @@ safety net, not a guarantee. The record and the flag are always written either w
 - `BALLAST_ALERT`: where flag/block alerts go: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 - `BALLAST_SESSION`: group records under a fixed run id (default: random per process).
 - `BALLAST_FAIL=closed|open`: behavior when Ballast cannot evaluate an action (default `closed`).
-- `BALLAST_UPSTREAM_TIMEOUT`: seconds before a hung model call is aborted (default `30`).
+- `BALLAST_UPSTREAM_TIMEOUT`: seconds to wait for the model before aborting a call
+  (default `120`). A watchdog for a hung model, not a latency target: set it above
+  your worst-case local inference and cap the model's `max_tokens` to bound that.
+  Lower it (e.g. `30`) only for a fast or cloud model.
 - `BALLAST_HEARTBEAT_SEC`: liveness heartbeat interval (default `30`).
 - `BALLAST_ANCHOR`: where to publish chain-head checkpoints: `none` (default), `stderr`, `file:PATH`, `command:CMD`, `webhook:URL`.
 - `BALLAST_REPORT`: opt-in public-counter endpoint; sends counts only (default `none`).

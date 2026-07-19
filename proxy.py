@@ -38,7 +38,11 @@ import core
 
 LISTEN_PORT = int(os.environ.get("BALLAST_PROXY_PORT", "8100"))
 UPSTREAM = os.environ.get("BALLAST_UPSTREAM", "http://localhost:11434")
-UPSTREAM_TIMEOUT = float(os.environ.get("BALLAST_UPSTREAM_TIMEOUT", "30"))  # a hung model must not wedge the device
+# Watchdog for a HUNG model, not a latency target. The default is tuned for LOCAL
+# edge inference (slow), not a responsive cloud model: set it ABOVE your worst-case
+# legitimate call, and cap the model's max_tokens to bound that worst case. Lower it
+# (e.g. 30) only for a fast/cloud model; raise it for constrained hardware or big prompts.
+UPSTREAM_TIMEOUT = float(os.environ.get("BALLAST_UPSTREAM_TIMEOUT", "120"))
 
 _step = 0
 
