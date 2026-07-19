@@ -382,6 +382,19 @@ def log_model_call(step, prompt, response, chose=None):
     )
 
 
+def log_model_error(step, prompt, error):
+    """A model call that never returned (timeout or upstream error). Captures the
+    ATTEMPTED prompt plus the failure, so the trail shows what was tried, not just
+    that something broke. Marked noteworthy (ERROR) so the prompt is stored even in
+    lean events mode. Returns (controls, control_hits) like log_model_call."""
+    return _emit(
+        "model_call",
+        meta={"step": step, "chose": "(n/a)", "error": error},
+        content={"prompt": prompt, "response": ""},
+        decision="ERROR",
+    )
+
+
 def log_tool_call(tool, arg, decision, reason, result=None):
     """ACTION boundary: what the agent actually tried to DO."""
     _emit(

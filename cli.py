@@ -42,7 +42,10 @@ def _iter_records(path):
 def _one_line(rec):
     kind = rec.get("kind")
     if kind == "model_call":
-        return f"model  step {rec.get('step')}  chose={rec.get('chose')}"
+        line = f"model  step {rec.get('step')}  chose={rec.get('chose')}"
+        if rec.get("error"):
+            line += f"  FAILED: {rec.get('error')}"
+        return line
     if kind == "tool_call":
         return f"tool   {rec.get('tool')}({rec.get('arg')!r}) -> {rec.get('decision')}  ({rec.get('reason')})"
     if kind == "flag":

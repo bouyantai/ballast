@@ -103,5 +103,38 @@ class ControlTagTests(unittest.TestCase):
         self.assertTrue(core.verify_chain(core.AUDIT_FILE)[0])
 
 
+class ModelErrorTests(unittest.TestCase):
+    """A failed call must still capture its attempted prompt, even in lean mode."""
+
+    def setUp(self):
+        d = tempfile.mkdtemp()
+        core.AUDIT_FILE = os.path.join(d, "a.jsonl")
+        core.CHAIN_FILE = os.path.join(d, "a.chain")
+        core.HEALTH_FILE = os.path.join(d, "a.health")
+        core._last = None
+        core.SIGN_KEY = None
+        core.REDACT_MODE = "off"
+        core.AMBIENT_TAGS = {}
+        core.MATCHERS = []
+        core.CONTENT_MODE = "events"  # lean: prove the prompt is stored anyway
+
+    def _records(self):
+        with open(core.AUDIT_FILE) as f:
+            return [json.loads(line) for line in f if line.strip()]
+
+    def test_failed_attempt_captures_prompt(self):
+        core.log_model_error(1, "list functions in inventory.py", "/v1/chat/completions: timed out")
+        r = self._records()[0]
+        self.assertEqual(r["kind"], "model_call")
+        self.assertEqual(r["error"], "/v1/chat/completions: timed out")
+        self.assertIn("content", r)  # stored despite events mode (ERROR is noteworthy)
+        self.assertEqual(r["content"]["prompt"], "list functions in inventory.py")
+        self.assertEqual(r["content"]["response"], "")
+
+    def test_failed_attempt_still_chains(self):
+        core.log_model_error(1, "do a thing", "timed out")
+        self.assertTrue(core.verify_chain(core.AUDIT_FILE)[0])
+
+
 if __name__ == "__main__":
     unittest.main()

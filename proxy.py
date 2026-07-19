@@ -11,9 +11,11 @@ it connects to this address as if it were the model endpoint.
               (audit + flag)
 
 Scope: the proxy logs every exchange and best-effort-flags dangerous intents in
-the prompt or reply. It does not observe tool execution, which happens inside the
-agent; that is the role of a future SDK adapter. And the flag is a substring hint,
-not a guarantee: it misses intents phrased outside its keyword list.
+the prompt or reply. A call that fails (timeout or upstream error) still records
+its attempted prompt, so nothing the agent tried is lost. It does not observe tool
+execution, which happens inside the agent; that is the role of a future SDK
+adapter. And the flag is a substring hint, not a guarantee: it misses intents
+phrased outside its keyword list.
 
 Run it:
     python3 proxy.py            # listens on :8100, forwards to Ollama by default
@@ -128,6 +130,25 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             pass
 
+    def _log_attempt(self, body, error):
+        """Record the attempted prompt of a FAILED call so it is never lost. Scans
+        and tags the prompt like any exchange. Returns True if it captured an attempt
+        (the request was parseable), False otherwise."""
+        global _step
+        try:
+            req_json = json.loads(body)
+        except (ValueError, TypeError):
+            return False
+        prompt, _ = _extract(req_json, {})
+        _step += 1
+        controls, control_hits = core.log_model_error(_step, prompt, error)
+        flags = _danger_flags(prompt, "")
+        for where, hits, text in flags:
+            core.log_flag(where, hits, text)
+        danger = sorted({h for _, hits, _ in flags for h in hits})
+        print(_console_line(_step, danger, control_hits, controls) + f"  [FAILED: {error}]", flush=True)
+        return True
+
     def do_POST(self):
         global _step
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -142,16 +163,20 @@ class Handler(BaseHTTPRequestHandler):
             with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT) as r:
                 resp, status = r.read(), r.status
         except urllib.error.HTTPError as e:
-            # The model itself returned an error status. Pass its own (already JSON)
-            # body straight through so the agent sees the real error.
-            core.log_system("upstream_http_error", f"{self.path}: {e.code}")
+            # The model itself returned an error status. Capture the attempted prompt,
+            # then pass its own (already JSON) body straight through to the agent.
+            err = f"{self.path}: HTTP {e.code}"
+            if not self._log_attempt(body, err):
+                core.log_system("upstream_http_error", err)
             self._reply(e.code, e.read())
             return
         except OSError as e:
             # Unreachable or timed out: a hung model must not wedge an unattended
-            # device. Return a clean JSON error, not an HTML page, so the agent
-            # degrades instead of choking on the response.
-            core.log_system("upstream_error", f"{self.path}: {e}")
+            # device. Capture the attempted prompt, return a clean JSON error (not an
+            # HTML page), so the agent degrades instead of choking on the response.
+            err = f"{self.path}: {e}"
+            if not self._log_attempt(body, err):
+                core.log_system("upstream_error", err)
             self._reply(504, _error_body(f"upstream unavailable: {e}", 504, "upstream_unavailable"))
             return
 
