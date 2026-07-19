@@ -372,15 +372,18 @@ def _emit(kind, meta, content, decision=None):
     return controls, control_hits  # so a caller (e.g. the proxy) can report them
 
 
-def log_model_call(step, prompt, response, tools_chosen=None, model=None):
+def log_model_call(step, prompt, response, tools_chosen=None, model=None, tokens=None):
     """CONTENT boundary: the agent<->model exchange. `model` records which model
-    produced it, taken from the request (provenance, not the model's own claim about
-    itself, which is unreliable). `tools_chosen`, when the model proposed tool calls,
-    records which tool(s) it chose. Both fields are omitted when empty.
-    Returns (controls, control_hits) so the proxy can report what fired."""
+    produced it (provenance, not the model's own claim about itself, which is
+    unreliable). `tokens` is the model's own usage report {prompt, completion} when it
+    provides one (accurate cost/context unit; `chars` stays as the always-available
+    fallback). `tools_chosen` records which tool(s) the model chose. Empty fields are
+    omitted. Returns (controls, control_hits) so the proxy can report what fired."""
     meta = {"step": step}
     if model:
         meta["model"] = model
+    if tokens:
+        meta["tokens"] = tokens
     if tools_chosen:
         meta["tools_chosen"] = tools_chosen
     return _emit(

@@ -175,6 +175,39 @@ class ChosenToolsTests(unittest.TestCase):
         self.assertEqual(proxy._chosen_tools("just a normal reply"), [])
 
 
+class UsageTests(unittest.TestCase):
+    """Token counts come from the model's own usage report, non-streamed and streamed."""
+
+    def test_openai_usage(self):
+        u = proxy._usage({"usage": {"prompt_tokens": 12, "completion_tokens": 7}})
+        self.assertEqual(u, {"prompt": 12, "completion": 7})
+
+    def test_ollama_eval_counts(self):
+        self.assertEqual(proxy._usage({"prompt_eval_count": 20, "eval_count": 9}),
+                         {"prompt": 20, "completion": 9})
+
+    def test_none_when_absent(self):
+        self.assertIsNone(proxy._usage({"message": {"content": "hi"}}))
+
+    def test_stream_usage_openai(self):
+        raw = (b'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+               b'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":3}}\n\n'
+               b'data: [DONE]\n\n')
+        self.assertEqual(proxy._stream_usage(raw), {"prompt": 5, "completion": 3})
+
+    def test_stream_usage_ollama(self):
+        raw = b'{"message":{"content":"hi"}}\n{"done":true,"prompt_eval_count":8,"eval_count":4}\n'
+        self.assertEqual(proxy._stream_usage(raw), {"prompt": 8, "completion": 4})
+
+    def test_parse_response_streamed_surfaces_usage(self):
+        raw = (b'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+               b'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":3}}\n\n'
+               b'data: [DONE]\n\n')
+        d, streamed = proxy._parse_response(raw)
+        self.assertTrue(streamed)
+        self.assertEqual(proxy._usage(d), {"prompt": 5, "completion": 3})
+
+
 class BannerTests(unittest.TestCase):
     """The startup banner must show both integration routes and read as examples,
     so it never regresses to implying an Ollama-only, must-run-agent.py workflow."""

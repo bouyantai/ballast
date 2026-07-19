@@ -45,6 +45,9 @@ def _one_line(rec):
         line = f"model  step {rec.get('step')}"
         if rec.get("model"):
             line += f"  [{rec.get('model')}]"
+        tk = rec.get("tokens")
+        if tk:
+            line += f"  {tk.get('prompt', 0)}+{tk.get('completion', 0)}tok"
         if rec.get("tools_chosen"):
             line += f"  chose {', '.join(rec['tools_chosen'])}"
         if rec.get("error"):

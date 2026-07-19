@@ -137,6 +137,14 @@ class ToolsChosenTests(unittest.TestCase):
         core.log_model_call(4, "p", "r")
         self.assertNotIn("model", self._last())
 
+    def test_tokens_recorded_when_present(self):
+        core.log_model_call(5, "p", "r", tokens={"prompt": 10, "completion": 4})
+        self.assertEqual(self._last().get("tokens"), {"prompt": 10, "completion": 4})
+
+    def test_tokens_omitted_when_absent(self):
+        core.log_model_call(6, "p", "r")
+        self.assertNotIn("tokens", self._last())
+
 
 class ModelErrorTests(unittest.TestCase):
     """A failed call must still capture its attempted prompt, even in lean mode."""

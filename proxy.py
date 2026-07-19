@@ -164,14 +164,57 @@ def _reassemble_stream(raw):
     return text
 
 
+def _usage(resp_json):
+    """Token counts from the model's OWN usage report (not computed). Handles OpenAI
+    (usage.prompt_tokens / completion_tokens) and Ollama (prompt_eval_count /
+    eval_count). Returns {"prompt": p, "completion": c} or None if not reported."""
+    if not isinstance(resp_json, dict):
+        return None
+    u = resp_json.get("usage")
+    if isinstance(u, dict) and (u.get("prompt_tokens") is not None or u.get("completion_tokens") is not None):
+        return {"prompt": u.get("prompt_tokens"), "completion": u.get("completion_tokens")}
+    if resp_json.get("prompt_eval_count") is not None or resp_json.get("eval_count") is not None:
+        return {"prompt": resp_json.get("prompt_eval_count"), "completion": resp_json.get("eval_count")}
+    return None
+
+
+def _stream_usage(raw):
+    """Pull token usage from a streamed body's usage / final chunk, if present.
+    OpenAI includes it only with stream_options.include_usage; Ollama always puts the
+    counts in its final chunk. Returns {"prompt": p, "completion": c} or None."""
+    try:
+        s = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+    except Exception:
+        return None
+    for line in s.splitlines():
+        line = line.strip()
+        if line.startswith("data:"):
+            line = line[5:].strip()
+        if not line or line == "[DONE]":
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        u = _usage(obj)
+        if u:
+            return u
+    return None
+
+
 def _parse_response(raw):
-    """Return (dict for _extract, was_streamed). A non-streamed body parses directly;
-    a streamed body is reassembled into a single message so it is captured too."""
+    """Return (dict for _extract, was_streamed). A non-streamed body parses directly; a
+    streamed body is reassembled into a single message, with any token usage from the
+    final chunk folded in so _usage() can still read it."""
     try:
         return json.loads(raw), False
     except ValueError:
         text = _reassemble_stream(raw)
-        return ({"message": {"content": text}} if text else {}), True
+        d = {"message": {"content": text}} if text else {}
+        u = _stream_usage(raw)
+        if u:  # re-expose in a shape _usage() understands
+            d["prompt_eval_count"], d["eval_count"] = u["prompt"], u["completion"]
+        return d, True
 
 
 _TOOL_RE = re.compile(r"\[tool_call\]\s*([^\s(]+)\(")
@@ -300,7 +343,8 @@ class Handler(BaseHTTPRequestHandler):
             _step += 1
             controls, control_hits = core.log_model_call(
                 _step, prompt=prompt, response=response,
-                tools_chosen=_chosen_tools(response), model=req_json.get("model"))
+                tools_chosen=_chosen_tools(response), model=req_json.get("model"),
+                tokens=_usage(resp_json))
             # scan BOTH sides: dangerous intent can arrive in the prompt or the reply
             flags = _danger_flags(prompt, response)
             for where, hits, text in flags:
