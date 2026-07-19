@@ -175,6 +175,62 @@ class ChosenToolsTests(unittest.TestCase):
         self.assertEqual(proxy._chosen_tools("just a normal reply"), [])
 
 
+class RequestPassthroughTests(unittest.TestCase):
+    """INVARIANT: Ballast forwards the request body to the model byte-for-byte.
+    Proven by putting a mock model behind the proxy and comparing what it received
+    to what was sent."""
+
+    def test_request_body_is_forwarded_unchanged(self):
+        import os
+        import tempfile
+        import threading
+        import urllib.request
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        received = {}
+
+        class Echo(BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get("Content-Length", 0))
+                received["body"] = self.rfile.read(n)
+                out = b'{"message": {"content": "ok"}}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+
+            def log_message(self, *a):
+                pass
+
+        d = tempfile.mkdtemp()   # audit to temp so we don't touch the working dir
+        core.AUDIT_FILE = os.path.join(d, "a.jsonl")
+        core.CHAIN_FILE = os.path.join(d, "a.chain")
+        core.HEALTH_FILE = os.path.join(d, "a.health")
+        core._last = None
+        saved_upstream = proxy.UPSTREAM
+
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), Echo)
+        threading.Thread(target=upstream.serve_forever, daemon=True).start()
+        proxy.UPSTREAM = f"http://127.0.0.1:{upstream.server_address[1]}"
+        front = ThreadingHTTPServer(("127.0.0.1", 0), proxy.Handler)
+        threading.Thread(target=front.serve_forever, daemon=True).start()
+        port = front.server_address[1]
+
+        # exact bytes, including non-ASCII and doubled whitespace we must not touch
+        body = b'{"model":"m","messages":[{"role":"user","content":"exact  \xc3\xa9  bytes"}],"z":true}'
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/v1/chat/completions",
+                data=body, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5).read()
+        finally:
+            front.shutdown()
+            upstream.shutdown()
+            proxy.UPSTREAM = saved_upstream
+
+        self.assertEqual(received.get("body"), body)   # nothing added, removed, or rewritten
+
+
 class UsageTests(unittest.TestCase):
     """Token counts come from the model's own usage report, non-streamed and streamed."""
 

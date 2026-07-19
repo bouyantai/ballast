@@ -91,6 +91,14 @@ PASS: OK, 12 records, chain intact
 - **Can't:** stop a tool from actually executing; it never observes execution.
   Blocking a tool at execution time is planned for a future SDK adapter.
 
+**Invariant: Ballast never modifies your requests.** The request body an agent
+sends is forwarded to the model **byte-for-byte**; Ballast adds nothing, removes
+nothing, and rewrites nothing. It is an observer, not a man-in-the-middle. The only
+exception is response-side and off by default: the experimental block mode
+(`BALLAST_BLOCK=on`) may withhold a flagged reply. It never touches the request.
+This is enforced by a test (`tests/test_proxy.py::RequestPassthroughTests`), not
+just promised.
+
 ## Deployment
 
 Ballast is not a cloud service; it's a small process you run **next to your

@@ -10,6 +10,11 @@ it connects to this address as if it were the model endpoint.
     agent --> Ballast proxy --> model (e.g. Ollama)
               (audit + flag)
 
+INVARIANT: Ballast NEVER modifies the request. The body an agent sends is forwarded
+to the model byte-for-byte; Ballast adds, removes, and rewrites nothing. It observes,
+it does not interfere. (The only exception is response-side and off by default: the
+experimental block mode may withhold a flagged reply. It never touches the request.)
+
 Scope: the proxy logs every exchange and best-effort-flags dangerous intents in
 the prompt or reply. A call that fails (timeout or upstream error) still records
 its attempted prompt, so nothing the agent tried is lost. It does not observe tool
@@ -308,7 +313,8 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length)
 
-        # 1. forward the request to the real model, untouched
+        # 1. forward the request to the model BYTE-FOR-BYTE.
+        #    INVARIANT: never modify the request. `body` is passed through as read.
         try:
             req = urllib.request.Request(
                 UPSTREAM + self.path, data=body,
