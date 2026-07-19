@@ -129,6 +129,14 @@ class ToolsChosenTests(unittest.TestCase):
         core.log_model_call(2, "p", "r")
         self.assertNotIn("tools_chosen", self._last())
 
+    def test_model_recorded_when_present(self):
+        core.log_model_call(3, "p", "r", model="llama3.2:latest")
+        self.assertEqual(self._last().get("model"), "llama3.2:latest")
+
+    def test_model_omitted_when_absent(self):
+        core.log_model_call(4, "p", "r")
+        self.assertNotIn("model", self._last())
+
 
 class ModelErrorTests(unittest.TestCase):
     """A failed call must still capture its attempted prompt, even in lean mode."""

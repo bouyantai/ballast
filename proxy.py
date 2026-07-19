@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
             return False
         prompt, _ = _extract(req_json, {})
         _step += 1
-        controls, control_hits = core.log_model_error(_step, prompt, error)
+        controls, control_hits = core.log_model_error(_step, prompt, error, model=req_json.get("model"))
         flags = _danger_flags(prompt, "")
         for where, hits, text in flags:
             core.log_flag(where, hits, text)
@@ -294,7 +294,8 @@ class Handler(BaseHTTPRequestHandler):
             prompt, response = _extract(req_json, resp_json)
             _step += 1
             controls, control_hits = core.log_model_call(
-                _step, prompt=prompt, response=response, tools_chosen=_chosen_tools(response))
+                _step, prompt=prompt, response=response,
+                tools_chosen=_chosen_tools(response), model=req_json.get("model"))
             # scan BOTH sides: dangerous intent can arrive in the prompt or the reply
             flags = _danger_flags(prompt, response)
             for where, hits, text in flags:

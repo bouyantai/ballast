@@ -372,12 +372,15 @@ def _emit(kind, meta, content, decision=None):
     return controls, control_hits  # so a caller (e.g. the proxy) can report them
 
 
-def log_model_call(step, prompt, response, tools_chosen=None):
-    """CONTENT boundary: the agent<->model exchange. `tools_chosen`, when the model
-    proposed tool calls, records which tool(s) it chose (a queryable summary of the
-    decided action). The field is omitted entirely when there is no tool call.
+def log_model_call(step, prompt, response, tools_chosen=None, model=None):
+    """CONTENT boundary: the agent<->model exchange. `model` records which model
+    produced it, taken from the request (provenance, not the model's own claim about
+    itself, which is unreliable). `tools_chosen`, when the model proposed tool calls,
+    records which tool(s) it chose. Both fields are omitted when empty.
     Returns (controls, control_hits) so the proxy can report what fired."""
     meta = {"step": step}
+    if model:
+        meta["model"] = model
     if tools_chosen:
         meta["tools_chosen"] = tools_chosen
     return _emit(
@@ -387,14 +390,18 @@ def log_model_call(step, prompt, response, tools_chosen=None):
     )
 
 
-def log_model_error(step, prompt, error):
+def log_model_error(step, prompt, error, model=None):
     """A model call that never returned (timeout or upstream error). Captures the
     ATTEMPTED prompt plus the failure, so the trail shows what was tried, not just
     that something broke. Marked noteworthy (ERROR) so the prompt is stored even in
     lean events mode. Returns (controls, control_hits) like log_model_call."""
+    meta = {"step": step}
+    if model:
+        meta["model"] = model
+    meta["error"] = error
     return _emit(
         "model_call",
-        meta={"step": step, "error": error},
+        meta=meta,
         content={"prompt": prompt, "response": ""},
         decision="ERROR",
     )

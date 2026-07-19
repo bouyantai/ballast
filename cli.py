@@ -43,6 +43,8 @@ def _one_line(rec):
     kind = rec.get("kind")
     if kind == "model_call":
         line = f"model  step {rec.get('step')}"
+        if rec.get("model"):
+            line += f"  [{rec.get('model')}]"
         if rec.get("tools_chosen"):
             line += f"  chose {', '.join(rec['tools_chosen'])}"
         if rec.get("error"):
