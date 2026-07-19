@@ -33,6 +33,23 @@ class ExtractTests(unittest.TestCase):
     def test_openai_legacy_completion(self):
         self.assertEqual(proxy._extract({"prompt": "x"}, {"choices": [{"text": "y"}]}), ("x", "y"))
 
+    def test_openai_tool_call_captured_and_flaggable(self):
+        resp = {"choices": [{"message": {"content": None, "tool_calls": [
+            {"type": "function", "function": {"name": "run_command",
+                                              "arguments": '{"cmd": "rm -rf /data"}'}}]}}]}
+        _, out = proxy._extract({"messages": [{"role": "user", "content": "clean up"}]}, resp)
+        self.assertIn("run_command", out)
+        self.assertIn("rm -rf /data", out)
+        # the proposed action is now visible to the danger scan
+        self.assertIn("rm -rf", core.scan_text(out))
+
+    def test_ollama_tool_call_dict_args(self):
+        resp = {"message": {"content": "", "tool_calls": [
+            {"function": {"name": "set_thermostat", "arguments": {"celsius": 21}}}]}}
+        _, out = proxy._extract({"messages": [{"role": "user", "content": "warm up"}]}, resp)
+        self.assertIn("set_thermostat", out)
+        self.assertIn("21", out)
+
     def test_multimodal_content_list(self):
         req = {"messages": [{"role": "user", "content": [{"type": "text", "text": "describe this"}]}]}
         prompt, _ = proxy._extract(req, {"choices": [{"message": {"content": "ok"}}]})

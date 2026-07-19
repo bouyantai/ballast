@@ -67,23 +67,45 @@ def _content_str(c):
     return ""
 
 
+def _tool_calls_text(msg):
+    """Render a message's tool calls as text so the model's PROPOSED actions are
+    captured and scannable. Without this, a tool-calling agent's action (the thing
+    that matters) is invisible: it lives in `tool_calls`, not `content`. Handles
+    OpenAI (arguments as a JSON string) and Ollama (arguments as a dict)."""
+    out = []
+    for tc in (msg or {}).get("tool_calls") or []:
+        fn = tc.get("function") or {}
+        args = fn.get("arguments", "")
+        if not isinstance(args, str):
+            try:
+                args = json.dumps(args)
+            except (TypeError, ValueError):
+                args = str(args)
+        out.append(f"[tool_call] {fn.get('name', '')}({args})")
+    return "\n".join(out)
+
+
 def _extract(req_json, resp_json):
     """Pull (prompt, response_text) out of a chat/generate exchange. Handles both
-    Ollama-native (/api/chat, /api/generate) and OpenAI-compatible (/v1) shapes, so
-    the proxy is model-API agnostic, not just Ollama-shaped."""
+    Ollama-native (/api/chat, /api/generate) and OpenAI-compatible (/v1) shapes, and
+    captures tool calls, so the proxy is model-API agnostic and sees proposed actions."""
     prompt = ""
     if isinstance(req_json, dict):
         msgs = req_json.get("messages")
         prompt = _content_str(msgs[-1].get("content", "")) if msgs else (req_json.get("prompt") or "")
     response = ""
     if isinstance(resp_json, dict):
-        # Ollama: /api/chat -> message.content, /api/generate -> response
-        response = (resp_json.get("message") or {}).get("content") or resp_json.get("response") or ""
-        if not response:
-            # OpenAI: /v1/chat/completions -> choices[0].message.content,
-            #         /v1/completions      -> choices[0].text
-            first = (resp_json.get("choices") or [{}])[0] or {}
-            response = _content_str((first.get("message") or {}).get("content", "")) or first.get("text") or ""
+        # find the assistant message: Ollama has it top-level, OpenAI under choices[0]
+        msg = resp_json.get("message")
+        if msg is None:
+            msg = ((resp_json.get("choices") or [{}])[0] or {}).get("message") or {}
+        response = (_content_str(msg.get("content", ""))
+                    or resp_json.get("response")
+                    or ((resp_json.get("choices") or [{}])[0] or {}).get("text")
+                    or "")
+        tools = _tool_calls_text(msg)
+        if tools:
+            response = (response + "\n" + tools).strip()
     return prompt, response
 
 
