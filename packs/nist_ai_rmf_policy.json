@@ -5,7 +5,7 @@
     "version": "1.0",
     "citation": "NIST AI RMF 1.0 (Measure + Manage functions)",
     "source": "https://airc.nist.gov/airmf-resources/playbook/",
-    "note": "A convenience index, NOT a compliance claim. NIST AI RMF is largely organizational process. Ballast can only observe what flows through it at runtime, so this pack maps to the MEASURE and MANAGE subcategories a runtime record relates to, and is explicitly NOT a GOVERN or MAP tool (those are governance/design process). Two subcategories are AMBIENT (about recording/monitoring all activity): transparency & accountability (MEASURE 2.8) and post-deployment monitoring (MANAGE 4.1). Five are TRIGGERED matchers that flag + tag only when content matches: safety (MEASURE 2.6), security & resilience incl. prompt-injection (MEASURE 2.7), privacy / PII (MEASURE 2.10), risk tracking / anomalies (MEASURE 3.1), and incident & error communication (MANAGE 4.3). extends_default keeps Ballast's normal detection. Matchers are keyword/regex heuristics; expect false positives. Revise for your own context."
+    "note": "A convenience index, NOT a compliance claim. NIST AI RMF is largely organizational process. Ballast can only observe what flows through it at runtime, so this pack maps to the MEASURE and MANAGE subcategories a runtime record relates to, and is explicitly NOT a GOVERN or MAP tool (those are governance/design process). Two subcategories are AMBIENT (about recording/monitoring all activity): transparency & accountability (MEASURE 2.8) and post-deployment monitoring (MANAGE 4.1). Five are TRIGGERED matchers that flag + tag only when content matches: safety (MEASURE 2.6), security & resilience incl. prompt-injection (MEASURE 2.7), privacy / PII (MEASURE 2.10), risk tracking / anomalies (MEASURE 3.1), and incident & error communication (MANAGE 4.3). extends_default keeps Ballast's normal detection. Matchers are keyword/regex heuristics; expect false positives. Revise for your own context. NOTE ON SCOPE: records are tagged only where their content earns it. Transparency and accountability (MEASURE 2.8) and post-deployment monitoring (MANAGE 4.1) apply to the trail as a whole, not to individual records. They are documented here but are not stamped on every record."
   },
   "extends_default": true,
   "safe_programs": [],
@@ -13,28 +13,6 @@
   "text_danger": [],
   "redact": [],
   "controls": [
-    {
-      "id": "MEASURE 2.8",
-      "title": "Transparency and accountability",
-      "ambient": true,
-      "summary": "Risks associated with transparency and accountability are examined and documented.",
-      "relevance": "The record of what the agent was asked, decided, and did is the transparency/accountability evidence (ambient).",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "MANAGE 4.1",
-      "title": "Post-deployment monitoring",
-      "ambient": true,
-      "summary": "Post-deployment monitoring plans are implemented, including capturing input, incident response, and change management.",
-      "relevance": "Ballast's continuous trail is the post-deployment monitoring mechanism (ambient).",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
     {
       "id": "MEASURE 2.6",
       "title": "Safety",

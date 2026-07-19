@@ -4,7 +4,7 @@
     "short": "HIPAA",
     "citation": "45 CFR Part 164 Subpart C (Security Rule); 164.502(b) is Subpart E (Privacy Rule); PHI identifiers per Safe Harbor 164.514(b)(2)",
     "source": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
-    "note": "A convenience index, NOT a compliance claim or legal advice. Ballast can only observe what flows through it — model exchanges and tool actions — so this pack covers the handful of HIPAA provisions that are runtime-observable and leaves the ~80% that are administrative, physical, and organizational process (risk analysis, workforce training, facility access, contingency planning, BA contracts, etc.) to your broader program. It keeps Ballast's normal detection (extends_default) and adds matchers: when clinical/PHI context, a plaintext transmission, or incident language appears, Ballast flags the record and tags it to the relevant provision so an auditor can pull it. Matchers are keyword/regex heuristics based on the Safe Harbor identifiers (164.514(b)(2)); expect false positives — a starting point, not clinical NLP. NOTE: 164.502(b) minimum-necessary is a Privacy Rule provision, included because PHI-presence is what Ballast can detect. Integrity (164.312(c)) is provided by the tamper-evident hash-chain — the real evidence is `ballast verify`, not the per-record tag. IMPORTANT: an audit trail of a system handling ePHI is itself ePHI and must be protected accordingly (redaction is on by default and this pack adds MRN redaction, but the trail is in scope). Not a full HIPAA solution. Revise for your own context."
+    "note": "A convenience index, NOT a compliance claim or legal advice. Ballast can only observe what flows through it — model exchanges and tool actions — so this pack covers the handful of HIPAA provisions that are runtime-observable and leaves the ~80% that are administrative, physical, and organizational process (risk analysis, workforce training, facility access, contingency planning, BA contracts, etc.) to your broader program. It keeps Ballast's normal detection (extends_default) and adds matchers: when clinical/PHI context, a plaintext transmission, or incident language appears, Ballast flags the record and tags it to the relevant provision so an auditor can pull it. Matchers are keyword/regex heuristics based on the Safe Harbor identifiers (164.514(b)(2)); expect false positives — a starting point, not clinical NLP. NOTE: 164.502(b) minimum-necessary is a Privacy Rule provision, included because PHI-presence is what Ballast can detect. Integrity (164.312(c)) is provided by the tamper-evident hash-chain — the real evidence is `ballast verify`, not the per-record tag. IMPORTANT: an audit trail of a system handling ePHI is itself ePHI and must be protected accordingly (redaction is on by default and this pack adds MRN redaction, but the trail is in scope). Not a full HIPAA solution. Revise for your own context. NOTE ON SCOPE: records are tagged only where their content earns it. The audit-controls, activity-review, and integrity provisions (164.312(b), 164.308(a)(1)(ii)(D), 164.312(c)) apply to the trail as a whole, not to individual records: Ballast is the recording mechanism, the trail is the input to activity review, and integrity is proven by `ballast verify`. They are documented here but are not stamped on every record."
   },
   "extends_default": true,
   "safe_programs": [],
@@ -15,45 +15,43 @@
   ],
   "controls": [
     {
-      "id": "164.312(b)",
-      "title": "Audit controls",
-      "summary": "Implement mechanisms that record and examine activity in information systems that contain or use ePHI.",
-      "relevance": "Ballast records and lets you examine every model exchange and action; this control covers all activity (ambient).",
-      "ambient": true,
-      "record_kinds": ["model_call", "tool_call"]
-    },
-    {
-      "id": "164.308(a)(1)(ii)(D)",
-      "title": "Information system activity review",
-      "summary": "Regularly review records of information system activity, such as audit logs and access/incident reports.",
-      "relevance": "Ballast's trail is the activity record to be reviewed; `ballast log` / `summary` are the review surface. Covers all activity (ambient).",
-      "ambient": true,
-      "record_kinds": ["model_call", "tool_call"]
-    },
-    {
-      "id": "164.312(c)",
-      "title": "Integrity",
-      "summary": "Protect ePHI from improper alteration or destruction, with a mechanism to corroborate it has not been altered.",
-      "relevance": "Every record is hash-chained (and optionally HMAC-sealed). The evidence is the chain itself — verify it with `ballast verify`; the per-record tag only marks that the record participates in it.",
-      "ambient": true,
-      "record_kinds": ["model_call", "tool_call"]
-    },
-    {
       "id": "164.502(b)",
       "title": "Minimum necessary (PHI present) — Privacy Rule",
       "summary": "Uses and disclosures of PHI must be limited to the minimum necessary. PHI combines health information with the identifiers at 164.514(b)(2) (names, dates, MRN, health-plan/account numbers, contacts).",
       "relevance": "When clinical or PHI context appears in the exchange or a tool action, Ballast flags and tags the record so an auditor can review whether only the minimum-necessary PHI was used. Common identifiers are redacted in storage.",
       "on_match": "flag",
-      "record_kinds": ["model_call", "tool_call"],
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
       "match": {
         "text": [
-          "patient", "diagnos", "prognosis", "medical record", "health record",
-          "ephi", "prescription", "prescribed", "medication", "treatment plan",
-          "symptom", "clinical", "physician", "health plan", "beneficiary",
-          "medicaid", "medicare", "date of birth", "lab result",
-          "icd-10", "icd10", "cpt code"
+          "patient",
+          "diagnos",
+          "prognosis",
+          "medical record",
+          "health record",
+          "ephi",
+          "prescription",
+          "prescribed",
+          "medication",
+          "treatment plan",
+          "symptom",
+          "clinical",
+          "physician",
+          "health plan",
+          "beneficiary",
+          "medicaid",
+          "medicare",
+          "date of birth",
+          "lab result",
+          "icd-10",
+          "icd10",
+          "cpt code"
         ],
-        "regex": ["(?i)\\bmrn[\\s:#-]*\\d{3,}"]
+        "regex": [
+          "(?i)\\bmrn[\\s:#-]*\\d{3,}"
+        ]
       }
     },
     {
@@ -62,19 +60,36 @@
       "summary": "Guard against unauthorized access to ePHI transmitted over a network; implementation specs call for integrity controls and encryption.",
       "relevance": "Fires only when PHI context AND a plaintext (non-TLS) endpoint appear in the same action — a possible unencrypted transmission of ePHI. Flags and tags it for review. Heuristic: it cannot confirm the payload was ePHI, only that both signals co-occur.",
       "on_match": "flag",
-      "record_kinds": ["model_call", "tool_call"],
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
       "match": {
         "all": [
           {
             "text": [
-              "patient", "diagnos", "medical record", "health record", "ephi",
-              "prescription", "medication", "health plan", "beneficiary",
-              "medicaid", "medicare", "lab result"
+              "patient",
+              "diagnos",
+              "medical record",
+              "health record",
+              "ephi",
+              "prescription",
+              "medication",
+              "health plan",
+              "beneficiary",
+              "medicaid",
+              "medicare",
+              "lab result"
             ],
-            "regex": ["(?i)\\bmrn[\\s:#-]*\\d{3,}"]
+            "regex": [
+              "(?i)\\bmrn[\\s:#-]*\\d{3,}"
+            ]
           },
           {
-            "regex": ["(?i)\\bhttp://[^\\s\"'`]+", "(?i)\\bftp://[^\\s\"'`]+"]
+            "regex": [
+              "(?i)\\bhttp://[^\\s\"'`]+",
+              "(?i)\\bftp://[^\\s\"'`]+"
+            ]
           }
         ]
       }
@@ -85,11 +100,20 @@
       "summary": "Identify and respond to suspected or known security incidents, mitigate their effects, and document them.",
       "relevance": "When the exchange or an action contains language suggesting a security incident (breach, unauthorized access, exfiltration), Ballast flags and tags the record for incident review.",
       "on_match": "flag",
-      "record_kinds": ["model_call", "tool_call"],
+      "record_kinds": [
+        "model_call",
+        "tool_call"
+      ],
       "match": {
         "text": [
-          "breach", "unauthorized access", "unauthorized disclosure", "data leak",
-          "exfiltrat", "ransomware", "compromised credential", "security incident"
+          "breach",
+          "unauthorized access",
+          "unauthorized disclosure",
+          "data leak",
+          "exfiltrat",
+          "ransomware",
+          "compromised credential",
+          "security incident"
         ],
         "regex": []
       }

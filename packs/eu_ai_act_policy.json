@@ -4,7 +4,7 @@
     "short": "EU AI Act",
     "citation": "Regulation (EU) 2024/1689",
     "source": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng",
-    "note": "A convenience index, NOT a compliance claim or legal advice. These obligations apply to HIGH-RISK AI systems (and some to GPAI); most AI is not high-risk under the Act. Ballast can only observe what flows through it (model exchanges and tool actions), so this pack covers the runtime-observable slice and leaves conformity assessment, risk management (Art 9), data governance (Art 10), and technical documentation (Art 11) to your broader program. Two obligations here are inherently AMBIENT (they are about keeping a complete log, so every record is evidence): record-keeping (Art 12) and deployer monitoring + retention (Art 26; Ballast's store-and-forward supports the >=6-month log retention of Art 26(6)). The same trail is also the evidence for a provider keeping the Art 12 logs (Art 19) and for post-market monitoring (Art 72). Two are TRIGGERED matchers that flag + tag only when content matches: human oversight (Art 14) and serious-incident reporting (Art 73). extends_default keeps Ballast's normal detection. Matchers are keyword heuristics; expect false positives. Revise for your own context."
+    "note": "A convenience index, NOT a compliance claim or legal advice. These obligations apply to HIGH-RISK AI systems (and some to GPAI); most AI is not high-risk under the Act. Ballast can only observe what flows through it (model exchanges and tool actions), so this pack covers the runtime-observable slice and leaves conformity assessment, risk management (Art 9), data governance (Art 10), and technical documentation (Art 11) to your broader program. Two obligations here are inherently AMBIENT (they are about keeping a complete log, so every record is evidence): record-keeping (Art 12) and deployer monitoring + retention (Art 26; Ballast's store-and-forward supports the >=6-month log retention of Art 26(6)). The same trail is also the evidence for a provider keeping the Art 12 logs (Art 19) and for post-market monitoring (Art 72). Two are TRIGGERED matchers that flag + tag only when content matches: human oversight (Art 14) and serious-incident reporting (Art 73). extends_default keeps Ballast's normal detection. Matchers are keyword heuristics; expect false positives. Revise for your own context. NOTE ON SCOPE: records are tagged only where their content earns it. The record-keeping and deployer-log obligations (Art 12, Art 26; and the downstream Art 19, Art 72) apply to the trail as a whole, not to individual records: the entire log, retained via store-and-forward, is the evidence. They are documented here but are not stamped on every record."
   },
   "extends_default": true,
   "safe_programs": [],
@@ -12,28 +12,6 @@
   "text_danger": [],
   "redact": [],
   "controls": [
-    {
-      "id": "Article 12",
-      "title": "Record-keeping",
-      "ambient": true,
-      "summary": "High-risk AI systems must technically allow the automatic recording of events (logs) over their lifetime, for traceability.",
-      "relevance": "Ballast is that automatic event log; every record is record-keeping evidence (ambient).",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
-    {
-      "id": "Article 26",
-      "title": "Obligations of deployers (monitoring & log retention)",
-      "ambient": true,
-      "summary": "Deployers of high-risk AI must monitor operation (26(5)) and retain automatically generated logs for at least six months (26(6)).",
-      "relevance": "The on-device monitoring record plus store-and-forward retention is evidence for deployer monitoring and log-keeping (ambient).",
-      "record_kinds": [
-        "model_call",
-        "tool_call"
-      ]
-    },
     {
       "id": "Article 14",
       "title": "Human oversight",
