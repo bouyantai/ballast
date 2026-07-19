@@ -353,7 +353,7 @@ def _emit(kind, meta, content, decision=None):
     if _store_content(decision) or flagged:
         rec["content"] = {k: (v or "")[:MAX_CONTENT_CHARS] for k, v in content.items()}
     if controls:
-        rec["controls"] = controls
+        rec["related_controls"] = controls  # relevance cross-reference, NOT an assertion of satisfaction
 
     prev = _last_hash()
     rec["prev"] = prev

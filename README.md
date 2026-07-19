@@ -312,7 +312,9 @@ A policy pack can carry a `controls` block that tags records against a framework
 controls two ways: **ambient** controls (no matcher) label every record of a kind,
 for controls that genuinely cover all activity; **matcher** controls fire only when
 a record's content matches (keyword/regex), so the tag is real evidence, and
-`on_match: flag` also flags it. Then you pull the evidence for one control:
+`on_match: flag` also flags it. A tagged record carries a `related_controls` field
+listing the control ids it relates to, a relevance cross-reference, not a claim the
+control is satisfied. Then you pull the evidence for one control:
 
 ```bash
 ballast log --control '164.502(b)'   # records where that control's matcher fired

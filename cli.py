@@ -60,11 +60,11 @@ def cmd_log(args):
             continue
         if args.session and rec.get("session") != args.session:
             continue
-        if getattr(args, "control", None) and args.control not in (rec.get("controls") or []):
+        if getattr(args, "control", None) and args.control not in (rec.get("related_controls") or []):
             continue
         ts = (rec.get("ts") or "")[:19].replace("T", " ")
         line = _one_line(rec)
-        ctrls = rec.get("controls")
+        ctrls = rec.get("related_controls")
         if ctrls:
             line += f"   ({', '.join(ctrls)})"
         print(f"{ts}  [{rec.get('session', '')}]  {line}")

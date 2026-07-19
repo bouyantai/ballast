@@ -43,6 +43,11 @@ instead of replacing it. Without it, a pack's `safe_programs`/`danger`/
 flagging. `title`, `summary`, and `relevance` are human documentation; the
 engine reads only `id`, `record_kinds`, `ambient`, `match`, and `on_match`.
 
+A tagged record carries a `related_controls` field listing the control ids it
+relates to. It is a relevance cross-reference, not an assertion that the control is
+satisfied. (The pack's `controls` block, above, is where controls are *defined*;
+`related_controls` on a record is what a matcher or ambient rule *stamped* on it.)
+
 ## Available
 
 - `hipaa_policy.json`: HIPAA (45 CFR Part 164). Six runtime-observable provisions:
