@@ -33,7 +33,7 @@ CONTENT_MODE = os.environ.get("BALLAST_LOG_CONTENT", "events")  # events | alway
 MAX_CONTENT_CHARS = int(os.environ.get("BALLAST_MAX_CONTENT", "2000"))
 MAX_BYTES = int(os.environ.get("BALLAST_MAX_BYTES", str(2 * 1024 * 1024)))  # rotate at 2MB
 GENESIS = "0" * 64
-_NOTEWORTHY = {"BLOCK", "FLAG", "ERROR"}  # decisions worth storing full content for
+_NOTEWORTHY = {"BLOCK", "FLAG", "ERROR", "INCIDENT"}  # decisions worth storing full content for
 
 # --- a session id groups one run's records (#2) ---------------------------
 SESSION = os.environ.get("BALLAST_SESSION") or uuid.uuid4().hex[:8]
@@ -429,6 +429,35 @@ def log_flag(where, matched, text):
     _emit("flag", {"where": where, "matched": matched}, {"text": text}, decision="FLAG")
     _counts["flagged"] += 1
     _notify("flag", f"{matched} in {where}")
+
+
+def log_recovery(record):
+    """SUPERVISOR boundary: an autonomous recovery incident from Lightship -- detection,
+    the do-no-harm safe-state, and the recovery-ladder walk -- written into the SAME
+    tamper-evident device trail as the agent's own activity. That means 'the agent did
+    X, then a crash-loop was caught and recovered by dealing a different card' is one
+    verifiable, hash-chained log, not two disjoint records.
+
+    `record` is the canonical Lightship Recovery Record (LRR); it is stored as the record
+    content (a JSON string, to survive Ballast's string-only content contract), so the
+    persisted, hash-sealed artifact IS the standard format. If BALLAST_REDACT is on (the
+    default), the deployer's redaction posture applies to this content as to any other --
+    "verbatim" holds only with redaction off. A few fields are also promoted to the top
+    level for quick filtering. Marked INCIDENT (noteworthy) so the full LRR is stored even
+    in lean events mode."""
+    r = record or {}
+    meta = {"source": "lightship", "lrr_version": r.get("lrr_version"),
+            "fault": r.get("fault"), "final_state": r.get("final_state"),
+            "trail_integrity": r.get("trail_integrity")}
+    if r.get("detect_to_safe_s") is not None:
+        meta["detect_to_safe_s"] = r["detect_to_safe_s"]
+    recovery = r.get("recovery")
+    if recovery:
+        meta["recovered"] = recovery.get("recovered")
+        meta["rung"] = recovery.get("rung")
+        meta["outcome"] = recovery.get("final")
+    detail = json.dumps(r, sort_keys=True)
+    return _emit("recovery", meta=meta, content={"incident": detail}, decision="INCIDENT")
 
 
 # =========================================================================
